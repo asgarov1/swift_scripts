@@ -1,0 +1,4 @@
+./make_icon.py -i italian_flag.png --text '[
+    {"text":"C1","x":530,"y":520,"font_size":450,"color":"#052D12","anchor":"mm","weight":"9"},
+    {"text":"ITALIANO","x":520,"y":730,"font_size":95,"color":"black","anchor":"mm","weight":"3"}
+ ]'
