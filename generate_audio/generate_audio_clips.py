@@ -6,7 +6,12 @@ Microsoft's edge-tts (offline, no API key required).
 Usage:
 
     pip install edge-tts
+    python3 generate_audio_clips.py --lang it
+    python3 generate_audio_clips.py --lang de
     python3 generate_audio_clips.py --voice it-IT-IsabellaNeural
+
+Pass `--lang` (one of `de`, `es`, `fr`, `it`) to pick a voice
+for that language. `--voice` overrides the per-language default if set.
 
 By default the script reads `input.txt` next to itself and writes clips into
 `output/` next to itself. Override either with `--input` / `--out`.
@@ -36,30 +41,29 @@ import sys
 from pathlib import Path
 from typing import Iterable
 
-# ┌──────────────────────────────────┬────────┬──────────────────────────────┐
-# │              Voice               │ Gender │            Style             │
-# ├──────────────────────────────────┼────────┼──────────────────────────────┤
-# │ it-IT-DiegoNeural                │ Male   │ Friendly, Positive           │
-# ├──────────────────────────────────┼────────┼──────────────────────────────┤
-# │ it-IT-ElsaNeural                 │ Female │ Friendly, Positive           │
-# ├──────────────────────────────────┼────────┼──────────────────────────────┤
-# │ it-IT-GiuseppeMultilingualNeural │ Male   │ Friendly, Positive           │
-# ├──────────────────────────────────┼────────┼──────────────────────────────┤
-# │ it-IT-IsabellaNeural             │ Female │ Friendly, Positive (current) │
-# └──────────────────────────────────┴────────┴──────────────────────────────┘
+# Friendly female voices per language. All have the "Friendly, Positive" style
+# in Microsoft's edge-tts voice catalog.
+#
+# ┌────────┬──────────────────────┬────────┬────────────────────┐
+# │  Lang  │        Voice         │ Gender │       Style        │
+# ├────────┼──────────────────────┼────────┼────────────────────┤
+# │  de    │ de-DE-KatjaNeural    │ Female │ Friendly, Positive │
+# │  es    │ es-ES-ElviraNeural   │ Female │ Friendly, Positive │
+# │  fr    │ fr-FR-DeniseNeural   │ Female │ Friendly, Positive │
+# │  it    │ it-IT-ElsaNeural     │ Female │ Friendly, Positive │
+# └────────┴──────────────────────┴────────┴────────────────────┘
 
-# │ en-US-EmmaMultilingualNeural     │ Cheerful, Clear, Conversational        │
-# ├──────────────────────────────────┼────────────────────────────────────────┤
-# │ en-US-AvaMultilingualNeural      │ Expressive, Caring, Pleasant, Friendly │
-# ├──────────────────────────────────┼────────────────────────────────────────┤
-# │ en-US-AndrewMultilingualNeural   │ Warm, Confident, Authentic             │
-# ├──────────────────────────────────┼────────────────────────────────────────┤
-# │ fr-FR-VivienneMultilingualNeural │ Friendly, Positive                     │
+LANG_VOICES: dict[str, str] = {
+    "de": "de-DE-AmalaNeural",
+    "es": "es-ES-ElviraNeural",
+    "fr": "fr-FR-DeniseNeural",
+    "it": "it-IT-ElsaNeural",
+}
 
-DEFAULT_VOICE = "it-IT-ElsaNeural"
+DEFAULT_LANG = "it"
 DEFAULT_RATE = "-8%"      # slightly slower — easier for learners to follow
-DEFAULT_VOLUME = "+10%"
-DEFAULT_PITCH = "+10Hz"
+DEFAULT_VOLUME = "+5%"
+DEFAULT_PITCH = "-2Hz"
 DEFAULT_EXT = "mp3"
 
 WHITESPACE_RE = re.compile(r"\s+")
@@ -143,6 +147,8 @@ async def run(args: argparse.Namespace) -> int:
         print(f"No phrases found in {args.input}", file=sys.stderr)
         return 1
 
+    voice = args.voice or LANG_VOICES[args.lang]
+
     out_dir: Path = args.out
     out_dir.mkdir(parents=True, exist_ok=True)
 
@@ -151,10 +157,11 @@ async def run(args: argparse.Namespace) -> int:
     skipped_existing = 0
     failed: list[str] = []
 
-    print(f"Manifest: {len(phrases)} phrases -> {out_dir} (.{ext}, voice={args.voice})")
+    print(f"Manifest: {len(phrases)} phrases -> {out_dir} (.{ext}, lang={args.lang}, voice={voice})")
 
     for phrase in phrases:
-        infinitive = verb_infinitive(phrase)
+        # Verb-conjugation detection is Italian-specific (matches -are/-ere/-ire).
+        infinitive = verb_infinitive(phrase) if args.lang == "it" else None
         base = infinitive if infinitive else filename_base(phrase)
         if not base:
             continue
@@ -170,7 +177,7 @@ async def run(args: argparse.Namespace) -> int:
             await synthesize_one(
                 text=phrase,
                 out_path=out_path,
-                voice=args.voice,
+                voice=voice,
                 rate=args.rate,
                 volume=args.volume,
                 pitch=args.pitch,
@@ -209,10 +216,14 @@ def parse_args(argv: Iterable[str] | None = None) -> argparse.Namespace:
                    help="Path to the text file of phrases (one per line).")
     p.add_argument("--out", type=Path, default=script_dir / "output",
                    help="Output directory for the generated audio clips.")
-    p.add_argument("--voice", default=DEFAULT_VOICE,
-                   help="edge-tts voice id. See `edge-tts --list-voices`. "
-                        "Common picks: it-IT-IsabellaNeural, it-IT-DiegoNeural, "
-                        "de-DE-KatjaNeural, es-ES-ElviraNeural, en-US-AvaNeural.")
+    p.add_argument("--lang", choices=sorted(LANG_VOICES), default=DEFAULT_LANG,
+                   help="Target language; picks a friendly female voice. "
+                        "One of: " + ", ".join(
+                            f"{c}={v}" for c, v in sorted(LANG_VOICES.items())
+                        ) + ".")
+    p.add_argument("--voice", default=None,
+                   help="edge-tts voice id. Overrides --lang when set. "
+                        "See `edge-tts --list-voices`.")
     p.add_argument("--rate", default=DEFAULT_RATE,
                    help="Speech rate adjustment.")
     p.add_argument("--volume", default=DEFAULT_VOLUME,

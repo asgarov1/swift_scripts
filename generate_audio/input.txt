@@ -1,239 +1,270 @@
-Se avessi saputo la verità, non avrei mai accettato.
-Pensavo che tu fossi già partito.
-Se avessimo più tempo, potremmo finire il progetto.
-Speravo che mi avessero invitato.
-Maria disse che sarebbe arrivata il giorno dopo.
-Il decreto va firmato dal ministro entro domani.
-In Italia si mangiano molti tipi di pasta.
-Te lo dico subito: gliel'ho già spedito.
-Mi sono fatto controllare la pressione dal medico.
-Me la sono cavata egregiamente all'esame orale.
-Sebbene fosse stanco, ha continuato a lavorare; di conseguenza, ha terminato il progetto in tempo.
-Pur essendo arrivato in ritardo, è riuscito a partecipare al dibattito.
-Le lettere? Le ho già spedite tutte stamattina.
-Per quanto sia stanco, finirò il lavoro stasera.
-Ecco l'autore dei cui libri ti ho parlato.
-Per quanto possa sembrare paradossale, i dati confermano la tesi opposta.
-Vale la pena soffermarsi su un aspetto spesso trascurato.
-Sarebbe opportuno riconsiderare la questione alla luce dei nuovi dati.
-A prescindere dalle apparenze, la realtà è ben più complessa.
-Mi preme sottolineare l'urgenza di un intervento immediato.
-Si tratta di una questione di non poco conto.
-Mi corre l'obbligo di precisare alcuni dettagli.
-Ne discende che le conclusioni vanno riviste.
-A ben vedere, l'argomentazione si regge su premesse fragili.
-Per dirla in altri termini, la posta in gioco è altissima.
-Se la prendi così, non se ne viene a capo.
-Lungi dall'essere risolto, il problema si è ulteriormente aggravato.
-Mi sia consentito esprimere alcune perplessità in merito.
-Tutto sommato, i benefici superano gli svantaggi.
-Se non altro, l'esperienza ci ha insegnato la prudenza.
-Si tratta di un tema spinoso che richiede massima cautela.
-C'è poco da fare: la decisione è ormai irreversibile.
-Conviene affrontare il problema alla radice.
-Non è certo questa la sede per discuterne.
-Non si può fare di tutta l'erba un fascio.
-Sotto questo profilo, la riforma appare insufficiente.
-L'ho visto coi miei occhi, non si tratta di un'illazione.
-A conti fatti, la proposta non regge.
-Viene da chiedersi se sia davvero la strada giusta.
-Non è il caso di drammatizzare, ma la situazione è seria.
-Per certi versi, hanno ragione entrambi.
-Tutto lascia pensare che la decisione sia ormai presa.
-Non è da escludere che ci siano stati errori di valutazione.
-Va detto, per onestà, che non tutto è stato negativo.
-Non c'è da meravigliarsi se la situazione è degenerata.
-Faccio mia la sua osservazione.
-Mi permetto di dissentire su questo punto specifico.
-In definitiva, non c'è una soluzione facile.
-Per giunta, le risorse a disposizione sono limitate.
-D'altro canto, non possiamo ignorare le difficoltà oggettive.
-Resta da vedere se la riforma produrrà gli effetti sperati.
-Avevo messo le mani avanti proprio per evitare malintesi.
-Ha voce in capitolo solo chi conosce davvero la materia.
-Il discorso lascia molto a desiderare sotto il profilo logico.
-L'iniziativa stenta a decollare per la mancanza di fondi.
-Tutt'al più potremmo concordare un rinvio.
-Ad ogni buon conto, conviene tenersi pronti.
-L'argomento merita un approfondimento ulteriore.
-Non si direbbe, eppure i numeri parlano chiaro.
-Ne va della nostra reputazione.
-Pur con tutti i suoi limiti, l'accordo segna un passo avanti.
-Tanto vale parlarne apertamente.
-Detto fra noi, l'esito non era affatto scontato.
-Stando ai dati, la tendenza è destinata a invertirsi.
-Sento il dovere di ringraziare quanti hanno contribuito.
-Mi rivolgo a Lei in qualità di rappresentante dell'associazione.
-In attesa di un cortese riscontro, porgo distinti saluti.
-Ne consegue che ogni ulteriore ritardo sarà inaccettabile.
-Si direbbe quasi che il tempo si sia fermato.
-A quanto pare, nessuno aveva previsto questa svolta.
-Non si fa altro che parlarne.
-L'occasione è propizia per fare il punto della situazione.
-Stento a credere che le cose siano andate proprio così.
-C'è da scommettere che la notizia susciterà polemiche.
-Non se ne può più di queste continue interruzioni.
-Vale a dire che la responsabilità ricade su di noi.
-Vorrei attirare la vostra attenzione su un punto cruciale.
-Tutto fa pensare a una soluzione di compromesso.
-A onor del vero, va riconosciuto il loro impegno.
-Mi domando come si possa giungere a tale conclusione.
-Era come se il tempo non fosse mai passato.
-C'è chi sostiene il contrario, e non senza ragione.
-Sotto certi aspetti, l'idea merita di essere approfondita.
-Sembra inverosimile, ma è proprio così.
-Dovremmo guardare in faccia la realtà.
-Mi sento di consigliarti la massima prudenza.
-Una buona volta, mettiamoci a sedere e parliamone.
-Tanto per cambiare, è arrivato in ritardo.
-Non c'è nulla di più sbagliato che generalizzare.
-Ci sarebbe da scrivere un trattato sull'argomento.
-Provvederò personalmente a verificare l'accaduto.
-L'avrei detto io stesso, se non mi avessi anticipato.
-Ai posteri l'ardua sentenza.
-Resto a disposizione per ogni eventuale chiarimento.
-Sapere è potere, ma non sempre basta.
-dimostrare
-conseguire
-comprendere
-sostenere
-ottenere
-affrontare
-risolvere
-esprimere
-ammettere
-distinguere
-promuovere
-attribuire
-giungere
-accadere
-rinunciare
-tollerare
-incidere
-trascurare
-rivolgersi
-svolgere
-perseguire
-concedere
-intervenire
-stabilire
-la sfumatura
-la testimonianza
-l'ambiguità
-la coesione
-l'imprenditoria
-la deroga
-la fattispecie
-lo sviluppo sostenibile
-la divulgazione
-il retaggio
-l'assunto
-la riservatezza
-il connubio
-la connivenza
-l'inquadramento
-il rincaro
-lo stallo
-il pendio
-la falda acquifera
-la bonifica
-la sovvenzione
-l'affluenza
-il varco
-il rovescio della medaglia
-l'esordio
-la stesura
-il flagello
-il fardello
-il malcontento
-il dispendio
-la stortura
-il riscatto
-il connettivo
-il provvedimento
-l'ambito
-la propensione
-la longevità
-la coercizione
-il declino
-il tessuto sociale
-la lungimiranza
-il diniego
-l'arroganza
-la disamina
-l'algoritmo
-la digitalizzazione
-l'intelligenza artificiale
-la cybersicurezza
-il richiedente asilo
-la diaspora
-lo sradicamento
-la dispersione scolastica
-il fact-checking
-la disinformazione
-il giornalismo investigativo
-il decorso
-il convivio
-la sagra
-la passerella
-la sartoria
-il fuoriclasse
-l'astensione
-la diatriba
-lo scetticismo
-il patrimonio culturale
-la riqualificazione
-la deontologia
-la giurisprudenza
-il sopruso
-la disparità
-il tracollo
-il barlume
-il tracciato
-lo slancio
-lo sgombero
-la scarica elettrica
-la siccità
-il dissesto
-il pignoramento
-la querela
-il sequestro
-la rincorsa
-lo svolgimento
-la cattedra
-il calo demografico
-l'agevolazione
-la stipula
-l'arringa
-la confutazione
-la disquisizione
-la postilla
-il tornaconto
-la sopraffazione
-il rastrellamento
-lo scellerato
-il prodigio
-lo zelo
-la sollecitudine
-la riluttanza
-l'esuberanza
-la pacatezza
-la transizione
-la concertazione
-la sussistenza
-il fabbisogno
-la suscettibilità
-il riguardo
-la crescita esponenziale
-il know-how
-il sopralluogo
-la maestria
-il manoscritto
-il critico letterario
-la coscienza civica
-la vetrina
-la lungaggine
-il sopruso amministrativo
-la deontologia professionale
-la divulgazione scientifica
-la diatesi
+Ich habe gestern lange gearbeitet.
+Wir haben einen Film gesehen.
+Er ist nach Berlin gefahren.
+Sie ist spät angekommen.
+machen -> gemacht
+lernen -> gelernt
+schreiben -> geschrieben
+einkaufen -> eingekauft
+Kannst du mir bitte helfen?
+Das rote Kleid gefällt ihr gut.
+Das Buch gehört meinem Bruder.
+Ich habe dem Lehrer geantwortet.
+Ich gehe in die Küche.
+Ich bin in der Küche.
+Er legt das Buch auf den Tisch.
+Das Buch liegt auf dem Tisch.
+Ich bleibe zu Hause, weil ich krank bin.
+Wir fahren mit dem Bus, weil der Zug ausfällt.
+Ich glaube, dass er heute keine Zeit hat.
+Sie sagt, dass sie später kommt.
+Ich gehe früh schlafen, denn ich bin müde.
+Der Bus kommt nicht, deshalb nehme ich ein Taxi.
+Es regnet. Trotzdem gehen wir spazieren.
+Ich habe wenig Zeit, deshalb arbeite ich schneller.
+Mein Bruder ist älter als ich.
+Mit dem Fahrrad bin ich schneller als zu Fuß.
+Heute ist es am kältesten.
+Diese Aufgabe ist einfacher als die letzte.
+Ich interessiere mich für Musik.
+Wir treffen uns um acht Uhr.
+Beeilst du dich bitte?
+Sie erinnert sich an den Termin.
+Ich wollte gestern anrufen.
+Wir konnten den Zug nicht erreichen.
+Er musste lange arbeiten.
+Du durftest früher nach Hause gehen.
+Ich werde morgen zu Hause arbeiten.
+Wirst du am Wochenende mitkommen?
+Sie wird die E-Mail später beantworten.
+Wir werden bald umziehen.
+Ich versuche, mehr Deutsch zu sprechen.
+Er hat vergessen, die Tür zu schließen.
+Es ist wichtig, pünktlich zu sein.
+Sie plant, morgen einzukaufen.
+Ich habe einen neuen Job.
+Sie wohnt in einer kleinen Wohnung.
+Wir fahren mit dem schnellen Zug.
+Das ist das beste Angebot.
+Ich war gestern zu Hause.
+Wir hatten am Morgen keine Zeit.
+Warst du am Wochenende in Berlin?
+Sie hatte starke Kopfschmerzen.
+Wenn ich Zeit habe, treffe ich meine Freunde.
+Wenn es regnet, bleiben wir zu Hause.
+Ruf mich an, wenn du angekommen bist.
+Wenn du willst, können wir zusammen lernen.
+Weißt du, wann der Kurs beginnt?
+Ich frage mich, ob das Geschäft heute offen ist.
+Kannst du mir sagen, wo die Apotheke ist?
+Niemand weiß, warum der Zug so spät ist.
+Ich hätte gern einen Kaffee.
+Könnten Sie mir bitte helfen?
+Wir würden gern einen Termin vereinbaren.
+An deiner Stelle würde ich früher losfahren.
+Ich wohne seit zwei Jahren in Munchen.
+Vor dem Kurs trinke ich einen Kaffee.
+Nach der Arbeit gehe ich einkaufen.
+In einer Stunde beginnt die Besprechung.
+Ich habe heute leider keine Zeit.
+Können wir den Termin verschieben?
+Ich melde mich später noch einmal.
+Das kommt darauf an.
+Ich bin damit einverstanden.
+Das passt mir gut.
+Ich habe morgen eine Besprechung im Büro.
+Wann fängt der Kurs genau an?
+Ich muss mich auf die Prüfung vorbereiten.
+Können Sie mir die Aufgabe noch einmal erklären?
+Ich habe schon etwas Erfahrung in diesem Bereich.
+Mein Deutsch ist noch nicht perfekt, aber ich lerne schnell.
+Die Wohnung ist zwar klein, aber sehr gemütlich.
+Wie hoch ist die Miete pro Monat?
+Gibt es in der Wohnung eine Waschmaschine?
+Ich möchte einen Besichtigungstermin vereinbaren.
+Meine Nachbarn sind zum Glück sehr ruhig.
+Wir ziehen nächste Woche in eine neue Wohnung um.
+Hat der Zug nach Hamburg Verspätung?
+Auf welchem Gleis fährt der Zug ab?
+Wo muss ich in Köln umsteigen?
+Die Verbindung ist leider schon ausgebucht.
+Wie lange dauert die Fahrt insgesamt?
+Ich bin noch unterwegs und komme etwas später an.
+Kann ich den Pullover in einer anderen Größe anprobieren?
+Ich würde den Artikel gern zurückgeben.
+Haben Sie die Quittung noch?
+Gibt es heute ein Sonderangebot?
+Das Modell gefällt mir, aber es ist etwas zu teuer.
+Ich brauche Hilfe vom Kundenservice.
+Ich fühle mich seit gestern nicht besonders gut.
+Ich habe starke Kopfschmerzen und huste viel.
+Der Arzt hat mir ein Rezept gegeben.
+Wo ist hier die nächste Apotheke?
+Ich soll die Tabletten zweimal täglich nehmen.
+Wenn es nicht besser wird, komme ich noch einmal.
+Vielen Dank für die nette Einladung.
+Ich freue mich schon auf das Wochenende.
+Tut mir leid, dass ich zu spät bin.
+Sollen wir heute Abend gemeinsam kochen?
+Die Stimmung auf der Party war super.
+Danke, das ist sehr freundlich von dir.
+Ich habe Ihnen gestern eine E-Mail geschickt.
+Könnten Sie mir bitte kurz antworten?
+Ich kann Sie gerade schlecht verstehen.
+Können Sie das bitte etwas deutlicher sagen?
+Leider konnte ich Sie telefonisch nicht erreichen.
+Ich schicke Ihnen die Nachricht sofort weiter.
+Ich bin verheiratet und habe zwei Kinder.
+Mit meiner Schwester verstehe ich mich sehr gut.
+Am Wochenende besuchen wir oft meine Eltern.
+Manchmal gibt es in der Familie auch Streit.
+Ich kümmere mich heute um die Kinder.
+Wir feiern den Geburtstag bei meinen Großeltern.
+In meiner Freizeit lese ich gern Romane.
+Hast du diesen Film schon gesehen?
+Ich lade die App später herunter.
+Die Sendung war interessant, aber etwas zu lang.
+Welche Musik hörst du normalerweise?
+Online finde ich oft gute Informationen.
+Ich muss dieses Formular noch ausfüllen.
+Wo kann ich hier einen Antrag stellen?
+Sie brauchen dafür einen gültigen Ausweis.
+Könnten Sie bitte hier unterschreiben?
+Ich würde gern einen Termin beim Amt vereinbaren.
+Ist dafür eine besondere Erlaubnis notwendig?
+Ich möchte ein Konto eröffnen.
+Kann ich mit Karte bezahlen?
+Die Rechnung ist höher als erwartet.
+Ich muss heute noch Geld überweisen.
+Wir versuchen im Moment etwas Geld zu sparen.
+Bar zu bezahlen ist hier leider nicht möglich.
+vereinbaren
+erklären
+antworten
+erzählen
+vergessen
+beginnen
+helfen
+gefallen
+empfehlen
+verkaufen
+reservieren
+umziehen
+mitbringen
+abholen
+anmachen
+ausfüllen
+teilnehmen
+stattfinden
+passieren
+planen
+sich treffen
+sich erinnern
+sich beeilen
+sich interessieren
+beantragen
+unterschreiben
+überweisen
+sparen
+besuchen
+feiern
+herunterladen
+sich kümmern
+sich verstehen
+sich streiten
+der Termin
+der Alltag
+die Gewohnheit
+pünktlich
+beschäftigt
+entspannt
+normalerweise
+manchmal
+die Arbeitszeit
+die Aufgabe
+die Besprechung
+die Erfahrung
+der Kollege
+die Kollegin
+die Prüfung
+erfolgreich
+die Miete
+der Umzug
+der Nachbar
+die Nachbarin
+das Wohnzimmer
+die Waschmaschine
+bequem
+ruhig
+die Verspätung
+die Verbindung
+das Gleis
+der Fahrplan
+die Abfahrt
+die Ankunft
+umsteigen
+unterwegs
+die Bestellung
+die Quittung
+das Sonderangebot
+die Größe
+der Kundenservice
+zurückgeben
+passen
+günstig
+die Erkältung
+die Untersuchung
+das Rezept
+die Apotheke
+die Tablette
+husten
+gesund
+müde
+die Einladung
+die Stimmung
+die Unterhaltung
+gemeinsam
+höflich
+hilfsbereit
+sich freuen
+sich entschuldigen
+die Nachricht
+der Anruf
+die E-Mail
+erreichen
+besetzt
+deutlich
+die Umwelt
+der Müll
+die Ampel
+die Kreuzung
+der Verkehr
+sauber
+laut
+praktisch
+der Erwachsene
+das Ehepaar
+geschieden
+ledig
+verheiratet
+hilfreich
+die Freizeit
+das Hobby
+der Roman
+die Zeitschrift
+der Bildschirm
+online
+langweilig
+das Amt
+das Formular
+der Ausweis
+die Unterschrift
+der Antrag
+die Erlaubnis
+gültig
+das Konto
+die Karte
+die Rechnung
+bar
+teuer
+billig
