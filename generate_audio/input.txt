@@ -1,270 +1,209 @@
-Ich habe gestern lange gearbeitet.
-Wir haben einen Film gesehen.
-Er ist nach Berlin gefahren.
-Sie ist spät angekommen.
-machen -> gemacht
-lernen -> gelernt
-schreiben -> geschrieben
-einkaufen -> eingekauft
-Kannst du mir bitte helfen?
-Das rote Kleid gefällt ihr gut.
-Das Buch gehört meinem Bruder.
-Ich habe dem Lehrer geantwortet.
-Ich gehe in die Küche.
-Ich bin in der Küche.
-Er legt das Buch auf den Tisch.
-Das Buch liegt auf dem Tisch.
-Ich bleibe zu Hause, weil ich krank bin.
-Wir fahren mit dem Bus, weil der Zug ausfällt.
-Ich glaube, dass er heute keine Zeit hat.
-Sie sagt, dass sie später kommt.
-Ich gehe früh schlafen, denn ich bin müde.
-Der Bus kommt nicht, deshalb nehme ich ein Taxi.
-Es regnet. Trotzdem gehen wir spazieren.
-Ich habe wenig Zeit, deshalb arbeite ich schneller.
-Mein Bruder ist älter als ich.
-Mit dem Fahrrad bin ich schneller als zu Fuß.
-Heute ist es am kältesten.
-Diese Aufgabe ist einfacher als die letzte.
-Ich interessiere mich für Musik.
-Wir treffen uns um acht Uhr.
-Beeilst du dich bitte?
-Sie erinnert sich an den Termin.
-Ich wollte gestern anrufen.
-Wir konnten den Zug nicht erreichen.
-Er musste lange arbeiten.
-Du durftest früher nach Hause gehen.
-Ich werde morgen zu Hause arbeiten.
-Wirst du am Wochenende mitkommen?
-Sie wird die E-Mail später beantworten.
-Wir werden bald umziehen.
-Ich versuche, mehr Deutsch zu sprechen.
-Er hat vergessen, die Tür zu schließen.
-Es ist wichtig, pünktlich zu sein.
-Sie plant, morgen einzukaufen.
-Ich habe einen neuen Job.
-Sie wohnt in einer kleinen Wohnung.
-Wir fahren mit dem schnellen Zug.
-Das ist das beste Angebot.
-Ich war gestern zu Hause.
-Wir hatten am Morgen keine Zeit.
-Warst du am Wochenende in Berlin?
-Sie hatte starke Kopfschmerzen.
-Wenn ich Zeit habe, treffe ich meine Freunde.
-Wenn es regnet, bleiben wir zu Hause.
-Ruf mich an, wenn du angekommen bist.
-Wenn du willst, können wir zusammen lernen.
-Weißt du, wann der Kurs beginnt?
-Ich frage mich, ob das Geschäft heute offen ist.
-Kannst du mir sagen, wo die Apotheke ist?
-Niemand weiß, warum der Zug so spät ist.
-Ich hätte gern einen Kaffee.
-Könnten Sie mir bitte helfen?
-Wir würden gern einen Termin vereinbaren.
-An deiner Stelle würde ich früher losfahren.
-Ich wohne seit zwei Jahren in Munchen.
-Vor dem Kurs trinke ich einen Kaffee.
-Nach der Arbeit gehe ich einkaufen.
-In einer Stunde beginnt die Besprechung.
-Ich habe heute leider keine Zeit.
-Können wir den Termin verschieben?
-Ich melde mich später noch einmal.
-Das kommt darauf an.
-Ich bin damit einverstanden.
-Das passt mir gut.
-Ich habe morgen eine Besprechung im Büro.
-Wann fängt der Kurs genau an?
-Ich muss mich auf die Prüfung vorbereiten.
-Können Sie mir die Aufgabe noch einmal erklären?
-Ich habe schon etwas Erfahrung in diesem Bereich.
-Mein Deutsch ist noch nicht perfekt, aber ich lerne schnell.
-Die Wohnung ist zwar klein, aber sehr gemütlich.
-Wie hoch ist die Miete pro Monat?
-Gibt es in der Wohnung eine Waschmaschine?
-Ich möchte einen Besichtigungstermin vereinbaren.
-Meine Nachbarn sind zum Glück sehr ruhig.
-Wir ziehen nächste Woche in eine neue Wohnung um.
-Hat der Zug nach Hamburg Verspätung?
-Auf welchem Gleis fährt der Zug ab?
-Wo muss ich in Köln umsteigen?
-Die Verbindung ist leider schon ausgebucht.
-Wie lange dauert die Fahrt insgesamt?
-Ich bin noch unterwegs und komme etwas später an.
-Kann ich den Pullover in einer anderen Größe anprobieren?
-Ich würde den Artikel gern zurückgeben.
-Haben Sie die Quittung noch?
-Gibt es heute ein Sonderangebot?
-Das Modell gefällt mir, aber es ist etwas zu teuer.
-Ich brauche Hilfe vom Kundenservice.
-Ich fühle mich seit gestern nicht besonders gut.
-Ich habe starke Kopfschmerzen und huste viel.
-Der Arzt hat mir ein Rezept gegeben.
-Wo ist hier die nächste Apotheke?
-Ich soll die Tabletten zweimal täglich nehmen.
-Wenn es nicht besser wird, komme ich noch einmal.
-Vielen Dank für die nette Einladung.
-Ich freue mich schon auf das Wochenende.
-Tut mir leid, dass ich zu spät bin.
-Sollen wir heute Abend gemeinsam kochen?
-Die Stimmung auf der Party war super.
-Danke, das ist sehr freundlich von dir.
-Ich habe Ihnen gestern eine E-Mail geschickt.
-Könnten Sie mir bitte kurz antworten?
-Ich kann Sie gerade schlecht verstehen.
-Können Sie das bitte etwas deutlicher sagen?
-Leider konnte ich Sie telefonisch nicht erreichen.
-Ich schicke Ihnen die Nachricht sofort weiter.
-Ich bin verheiratet und habe zwei Kinder.
-Mit meiner Schwester verstehe ich mich sehr gut.
-Am Wochenende besuchen wir oft meine Eltern.
-Manchmal gibt es in der Familie auch Streit.
-Ich kümmere mich heute um die Kinder.
-Wir feiern den Geburtstag bei meinen Großeltern.
-In meiner Freizeit lese ich gern Romane.
-Hast du diesen Film schon gesehen?
-Ich lade die App später herunter.
-Die Sendung war interessant, aber etwas zu lang.
-Welche Musik hörst du normalerweise?
-Online finde ich oft gute Informationen.
-Ich muss dieses Formular noch ausfüllen.
-Wo kann ich hier einen Antrag stellen?
-Sie brauchen dafür einen gültigen Ausweis.
-Könnten Sie bitte hier unterschreiben?
-Ich würde gern einen Termin beim Amt vereinbaren.
-Ist dafür eine besondere Erlaubnis notwendig?
-Ich möchte ein Konto eröffnen.
-Kann ich mit Karte bezahlen?
-Die Rechnung ist höher als erwartet.
-Ich muss heute noch Geld überweisen.
-Wir versuchen im Moment etwas Geld zu sparen.
-Bar zu bezahlen ist hier leider nicht möglich.
-vereinbaren
-erklären
-antworten
-erzählen
-vergessen
-beginnen
-helfen
-gefallen
-empfehlen
-verkaufen
-reservieren
-umziehen
-mitbringen
-abholen
-anmachen
-ausfüllen
-teilnehmen
-stattfinden
-passieren
-planen
-sich treffen
-sich erinnern
-sich beeilen
-sich interessieren
-beantragen
-unterschreiben
-überweisen
-sparen
-besuchen
-feiern
-herunterladen
-sich kümmern
-sich verstehen
-sich streiten
-der Termin
-der Alltag
-die Gewohnheit
-pünktlich
-beschäftigt
-entspannt
-normalerweise
-manchmal
-die Arbeitszeit
-die Aufgabe
-die Besprechung
-die Erfahrung
-der Kollege
-die Kollegin
-die Prüfung
-erfolgreich
-die Miete
-der Umzug
-der Nachbar
-die Nachbarin
-das Wohnzimmer
-die Waschmaschine
-bequem
-ruhig
-die Verspätung
-die Verbindung
-das Gleis
-der Fahrplan
-die Abfahrt
-die Ankunft
-umsteigen
-unterwegs
-die Bestellung
-die Quittung
-das Sonderangebot
-die Größe
-der Kundenservice
-zurückgeben
-passen
-günstig
-die Erkältung
-die Untersuchung
-das Rezept
-die Apotheke
-die Tablette
-husten
-gesund
-müde
-die Einladung
-die Stimmung
-die Unterhaltung
-gemeinsam
-höflich
-hilfsbereit
-sich freuen
-sich entschuldigen
-die Nachricht
-der Anruf
-die E-Mail
-erreichen
-besetzt
-deutlich
-die Umwelt
-der Müll
-die Ampel
-die Kreuzung
-der Verkehr
-sauber
-laut
-praktisch
-der Erwachsene
-das Ehepaar
-geschieden
-ledig
-verheiratet
-hilfreich
-die Freizeit
-das Hobby
-der Roman
-die Zeitschrift
-der Bildschirm
-online
-langweilig
-das Amt
-das Formular
-der Ausweis
-die Unterschrift
-der Antrag
-die Erlaubnis
-gültig
-das Konto
-die Karte
-die Rechnung
-bar
-teuer
-billig
+Quand j'étais étudiant, je prenais le train tous les jours.
+Il faisait froid et les rues étaient presque vides.
+Nous cherchions une solution, mais personne n'avait assez d'informations.
+Je lisais le message quand le téléphone a sonné.
+Il pleuvait, alors nous avons reporté la visite.
+Avant, elle travaillait le week-end ; cette année, elle a changé d'emploi.
+Je voudrais obtenir un remboursement partiel.
+Pourriez-vous m'envoyer le document avant vendredi ?
+Il faudrait vérifier les horaires avant de partir.
+Si j'ai le temps, je passerai à la mairie demain.
+Si le prix baissait, nous accepterions l'offre.
+Si tu veux, on peut en discuter après la réunion.
+Il faut que vous remplissiez ce formulaire.
+Il est important que chacun puisse donner son avis.
+Il vaut mieux que nous partions plus tôt.
+C'est une solution qui pourrait fonctionner.
+Le document que vous avez envoyé est incomplet.
+Je me souviens du jour où nous avons signé le contrat.
+Comme le train était en retard, j'ai manqué le début de la réunion.
+Le service n'a pas fonctionné, donc je demande un remboursement.
+Puisque vous êtes disponible, nous pouvons avancer l'entretien.
+Même si le trajet est long, je préfère prendre le train.
+Le produit coûte cher ; pourtant, il se vend très bien.
+Cette solution est simple, cependant elle ne convient pas à tout le monde.
+J'ai reçu le formulaire et je l'ai rempli tout de suite.
+Nous avons écrit au propriétaire et nous lui avons expliqué le problème.
+Les clients attendent une réponse ; il faut leur répondre aujourd'hui.
+Je vais à la réunion, et Marie y va aussi.
+Il parle souvent de ce projet ; il en parle avec enthousiasme.
+Vous avez besoin de deux justificatifs ? Oui, j'en ai deux.
+Elle dit qu'elle cherche un nouveau logement.
+Le conseiller demande si vous avez déjà envoyé le dossier.
+Ils veulent savoir quand la formation commencera.
+Le contrat a été signé hier.
+Les déchets sont triés avant d'être recyclés.
+La décision sera annoncée la semaine prochaine.
+En comparant les prix, vous pouvez économiser beaucoup.
+Elle a trouvé une solution en discutant avec son équipe.
+En arrivant plus tôt, nous éviterons les embouteillages.
+D'abord, j'ai vérifié l'adresse ; ensuite, j'ai réservé un billet.
+Pendant que je remplissais le formulaire, l'employée cherchait mon dossier.
+Finalement, nous avons obtenu une réponse positive.
+Ce trajet est moins cher que le trajet direct.
+Cette solution est aussi efficace que l'ancienne.
+C'est l'option la plus pratique pour notre équipe.
+Quelqu'un a oublié son dossier dans la salle.
+Personne ne savait comment résoudre la panne.
+Chacun doit signer le document avant vendredi.
+Si vous avez le reçu, montrez-le-moi.
+Elle a envoyé le devis au client ; elle le lui a envoyé hier.
+Des problèmes, il y en a souvent dans ce quartier.
+Je suis content que vous puissiez venir à la réunion.
+Je doute que cette solution convienne à tout le monde.
+Il est dommage que le service soit interrompu aujourd'hui.
+Je comprends votre point de vue, mais je ne suis pas tout à fait d'accord.
+À mon avis, il faudrait tenir compte du contexte.
+Ce qui me semble important, c'est la qualité de vie.
+D'un côté, c'est pratique ; de l'autre, cela coûte cher.
+Je cherche un logement qui soit proche des transports.
+Depuis que j'habite ici, je prends moins souvent la voiture.
+Le quartier est animé sans être trop bruyant.
+Si le loyer était moins élevé, je signerais tout de suite.
+Je vous contacte au sujet de ma candidature.
+Pourriez-vous me préciser la date limite ?
+J'ai acquis de l'expérience grâce à mon dernier stage.
+Nous aurions besoin de reporter la réunion.
+Le reportage explique pourquoi les prix ont augmenté.
+J'ai lu une critique qui m'a donné envie de voir ce film.
+Cette exposition m'a beaucoup marqué.
+Je limite mon temps sur les réseaux sociaux.
+Il faudrait réduire le gaspillage dans les cantines.
+Même si cela demande des efforts, le recyclage reste utile.
+Les transports en commun permettent de moins polluer.
+Je ferai plus attention à ma consommation d'énergie.
+Je voudrais déposer une plainte, car le service n'a pas été fourni.
+Il y a eu un malentendu au moment de la réservation.
+Serait-il possible d'obtenir un remboursement partiel ?
+En attendant, nous pouvons proposer une solution provisoire.
+soutenir
+résoudre
+permettre
+devoir
+recevoir
+conduire
+craindre
+joindre
+apercevoir
+décrire
+convaincre
+atteindre
+prévoir
+obtenir
+maintenir
+interrompre
+s'inscrire
+se souvenir
+s'apercevoir
+exprimer
+améliorer
+gérer
+participer
+remplacer
+jeter
+envoyer
+nettoyer
+traduire
+répondre
+réfléchir
+choisir
+l'enjeu
+un point de vue
+un argument
+une nuance
+un compromis
+la pollution
+le recyclage
+une énergie renouvelable
+le gaspillage
+une conséquence
+un entretien
+un stage
+une compétence
+un délai
+une réunion
+un logement
+les transports en commun
+une démarche
+une association
+une habitude
+un reportage
+un abonnement
+un réseau social
+une critique
+une exposition
+un remboursement
+une panne
+une plainte
+une solution provisoire
+un malentendu
+une priorité
+un avantage
+un inconvénient
+une preuve
+un désaccord
+une proposition
+un débat
+une hypothèse
+le climat
+une ressource
+une espèce menacée
+le tri des déchets
+une consommation responsable
+une empreinte carbone
+la biodiversité
+un espace vert
+un diplôme
+une formation
+une candidature
+un contrat
+un salaire
+une équipe
+une responsabilité
+un objectif
+une facture
+un quartier
+un locataire
+un propriétaire
+une assurance
+un rendez-vous administratif
+une file d'attente
+une pièce d'identité
+un article
+un documentaire
+une bande-annonce
+un lecteur
+un avis en ligne
+une source fiable
+une fausse information
+un patrimoine
+un conflit
+un retard
+une urgence
+un risque
+une amélioration
+une réparation
+une négociation
+une réclamation
+un symptôme
+une ordonnance
+un traitement
+une fatigue
+un équilibre
+le bien-être
+un congé maladie
+une prévention
+une réduction
+un devis
+une garantie
+un versement
+un reçu
+une livraison
+un achat d'occasion
+un comparateur de prix
+un trajet
+une correspondance
+un embouteillage
+une réservation
+un hébergement
+une frontière

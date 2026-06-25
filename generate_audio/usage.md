@@ -32,3 +32,6 @@ source venv/bin/activate
 # reinstall the module
 python3 -m pip install edge-tts
 ```
+---
+
+make start <path_to_folder> <language>

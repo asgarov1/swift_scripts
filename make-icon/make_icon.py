@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/Users/asgarov1/Projects/swift/scripts/make-icon/venv/bin/python3
 """Render text over an image and install the result as an iconset in Assets.xcassets.
 
 Example:
@@ -6,8 +6,8 @@ Example:
         --input spanish-a1/Flag-Spain_1024.jpeg \
         --icon-set AppIcon \
         --color white \
-        --text '{"text":"A1","x":512,"y":820,"font_size":260,"anchor":"mm"}' \
-        --text '{"text":"ES","x":512,"y":260,"font_size":200,"color":"#FFCC00"}'
+        --text '{"text":"A1","x":512,"y":820,"font":"/path/to/font.ttf","font_size":260,"anchor":"mm"}' \
+        --text '{"text":"ES","x":512,"y":260,"font":"/path/to/another-font.otf","font_size":200,"color":"#FFCC00"}'
 
 Or with a JSON file containing a list of the same objects:
     python3 scripts/make_icon.py -i flag.jpg --config icon_text.json
@@ -16,6 +16,7 @@ Or with a JSON file containing a list of the same objects:
 from __future__ import annotations
 
 import argparse
+import csv
 import json
 import sys
 from pathlib import Path
@@ -30,6 +31,8 @@ DEFAULT_FONT_CANDIDATES = [
 
 
 def load_font(path: str | None, size: int) -> ImageFont.FreeTypeFont:
+    if path and not Path(path).is_file():
+        raise FileNotFoundError(f"Font file not found: {path}")
     candidates = [path] if path else DEFAULT_FONT_CANDIDATES
     for candidate in candidates:
         if candidate and Path(candidate).exists():
@@ -154,6 +157,17 @@ def collect_specs(args: argparse.Namespace) -> list[dict]:
             specs.extend(parsed)
         else:
             specs.append(parsed)
+    for raw in args.csv or []:
+        values = next(csv.reader([raw], skipinitialspace=True))
+        fields = ("text", "x", "y", "font", "font_size", "color", "anchor", "weight")
+        if len(values) > len(fields):
+            raise ValueError(
+                f"CSV text spec has {len(values)} fields; expected at most {len(fields)}: {raw}"
+            )
+        spec = {field: value for field, value in zip(fields, values) if value != ""}
+        if not spec.get("text"):
+            raise ValueError(f"CSV text spec must start with text: {raw}")
+        specs.append(spec)
     return specs
 
 
@@ -184,6 +198,11 @@ def main() -> int:
         action="append",
         help='Inline text spec as JSON object, or a JSON array of specs. Repeatable.',
     )
+    parser.add_argument(
+        "--csv",
+        action="append",
+        help="Comma-separated text,x,y,font,font_size,color,anchor,weight spec. Repeatable.",
+    )
     parser.add_argument("--config", type=Path, help="JSON file with a list of text specs.")
     args = parser.parse_args()
 
@@ -193,7 +212,7 @@ def main() -> int:
 
     specs = collect_specs(args)
     if not specs:
-        print("No text specs provided; use --text or --config.", file=sys.stderr)
+        print("No text specs provided; use --text, --csv, or --config.", file=sys.stderr)
         return 1
 
     variants = render_variants(args.input, specs, args.size, args.color, args.weight)

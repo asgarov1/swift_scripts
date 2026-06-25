@@ -48,19 +48,19 @@ from typing import Iterable
 # │  Lang  │        Voice         │ Gender │       Style        │
 # ├────────┼──────────────────────┼────────┼────────────────────┤
 # │  de    │ de-DE-KatjaNeural    │ Female │ Friendly, Positive │
-# │  es    │ es-ES-ElviraNeural   │ Female │ Friendly, Positive │
+# │  es    │ es-ES-XimenaNeural   │ Female │ Friendly, Positive │
 # │  fr    │ fr-FR-DeniseNeural   │ Female │ Friendly, Positive │
 # │  it    │ it-IT-ElsaNeural     │ Female │ Friendly, Positive │
 # └────────┴──────────────────────┴────────┴────────────────────┘
 
 LANG_VOICES: dict[str, str] = {
     "de": "de-DE-AmalaNeural",
-    "es": "es-ES-ElviraNeural",
+    "es": "es-ES-XimenaNeural",
     "fr": "fr-FR-DeniseNeural",
     "it": "it-IT-ElsaNeural",
 }
 
-DEFAULT_LANG = "it"
+DEFAULT_LANG = "es"
 DEFAULT_RATE = "-8%"      # slightly slower — easier for learners to follow
 DEFAULT_VOLUME = "+5%"
 DEFAULT_PITCH = "-2Hz"
