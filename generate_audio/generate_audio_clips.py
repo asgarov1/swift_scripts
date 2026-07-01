@@ -8,9 +8,10 @@ Usage:
     pip install edge-tts
     python3 generate_audio_clips.py --lang it
     python3 generate_audio_clips.py --lang de
+    python3 generate_audio_clips.py --lang sv
     python3 generate_audio_clips.py --voice it-IT-IsabellaNeural
 
-Pass `--lang` (one of `de`, `es`, `fr`, `it`) to pick a voice
+Pass `--lang` (one of `de`, `es`, `fr`, `it`, `sv`) to pick a voice
 for that language. `--voice` overrides the per-language default if set.
 
 By default the script reads `input.txt` next to itself and writes clips into
@@ -51,6 +52,7 @@ from typing import Iterable
 # │  es    │ es-ES-XimenaNeural   │ Female │ Friendly, Positive │
 # │  fr    │ fr-FR-DeniseNeural   │ Female │ Friendly, Positive │
 # │  it    │ it-IT-ElsaNeural     │ Female │ Friendly, Positive │
+# │  sv    │ sv-SE-SofieNeural    │ Female │ Friendly           │
 # └────────┴──────────────────────┴────────┴────────────────────┘
 
 LANG_VOICES: dict[str, str] = {
@@ -58,6 +60,7 @@ LANG_VOICES: dict[str, str] = {
     "es": "es-ES-XimenaNeural",
     "fr": "fr-FR-DeniseNeural",
     "it": "it-IT-ElsaNeural",
+    "sv": "sv-SE-SofieNeural",
 }
 
 DEFAULT_LANG = "es"

@@ -1,209 +1,196 @@
-Quand j'étais étudiant, je prenais le train tous les jours.
-Il faisait froid et les rues étaient presque vides.
-Nous cherchions une solution, mais personne n'avait assez d'informations.
-Je lisais le message quand le téléphone a sonné.
-Il pleuvait, alors nous avons reporté la visite.
-Avant, elle travaillait le week-end ; cette année, elle a changé d'emploi.
-Je voudrais obtenir un remboursement partiel.
-Pourriez-vous m'envoyer le document avant vendredi ?
-Il faudrait vérifier les horaires avant de partir.
-Si j'ai le temps, je passerai à la mairie demain.
-Si le prix baissait, nous accepterions l'offre.
-Si tu veux, on peut en discuter après la réunion.
-Il faut que vous remplissiez ce formulaire.
-Il est important que chacun puisse donner son avis.
-Il vaut mieux que nous partions plus tôt.
-C'est une solution qui pourrait fonctionner.
-Le document que vous avez envoyé est incomplet.
-Je me souviens du jour où nous avons signé le contrat.
-Comme le train était en retard, j'ai manqué le début de la réunion.
-Le service n'a pas fonctionné, donc je demande un remboursement.
-Puisque vous êtes disponible, nous pouvons avancer l'entretien.
-Même si le trajet est long, je préfère prendre le train.
-Le produit coûte cher ; pourtant, il se vend très bien.
-Cette solution est simple, cependant elle ne convient pas à tout le monde.
-J'ai reçu le formulaire et je l'ai rempli tout de suite.
-Nous avons écrit au propriétaire et nous lui avons expliqué le problème.
-Les clients attendent une réponse ; il faut leur répondre aujourd'hui.
-Je vais à la réunion, et Marie y va aussi.
-Il parle souvent de ce projet ; il en parle avec enthousiasme.
-Vous avez besoin de deux justificatifs ? Oui, j'en ai deux.
-Elle dit qu'elle cherche un nouveau logement.
-Le conseiller demande si vous avez déjà envoyé le dossier.
-Ils veulent savoir quand la formation commencera.
-Le contrat a été signé hier.
-Les déchets sont triés avant d'être recyclés.
-La décision sera annoncée la semaine prochaine.
-En comparant les prix, vous pouvez économiser beaucoup.
-Elle a trouvé une solution en discutant avec son équipe.
-En arrivant plus tôt, nous éviterons les embouteillages.
-D'abord, j'ai vérifié l'adresse ; ensuite, j'ai réservé un billet.
-Pendant que je remplissais le formulaire, l'employée cherchait mon dossier.
-Finalement, nous avons obtenu une réponse positive.
-Ce trajet est moins cher que le trajet direct.
-Cette solution est aussi efficace que l'ancienne.
-C'est l'option la plus pratique pour notre équipe.
-Quelqu'un a oublié son dossier dans la salle.
-Personne ne savait comment résoudre la panne.
-Chacun doit signer le document avant vendredi.
-Si vous avez le reçu, montrez-le-moi.
-Elle a envoyé le devis au client ; elle le lui a envoyé hier.
-Des problèmes, il y en a souvent dans ce quartier.
-Je suis content que vous puissiez venir à la réunion.
-Je doute que cette solution convienne à tout le monde.
-Il est dommage que le service soit interrompu aujourd'hui.
-Je comprends votre point de vue, mais je ne suis pas tout à fait d'accord.
-À mon avis, il faudrait tenir compte du contexte.
-Ce qui me semble important, c'est la qualité de vie.
-D'un côté, c'est pratique ; de l'autre, cela coûte cher.
-Je cherche un logement qui soit proche des transports.
-Depuis que j'habite ici, je prends moins souvent la voiture.
-Le quartier est animé sans être trop bruyant.
-Si le loyer était moins élevé, je signerais tout de suite.
-Je vous contacte au sujet de ma candidature.
-Pourriez-vous me préciser la date limite ?
-J'ai acquis de l'expérience grâce à mon dernier stage.
-Nous aurions besoin de reporter la réunion.
-Le reportage explique pourquoi les prix ont augmenté.
-J'ai lu une critique qui m'a donné envie de voir ce film.
-Cette exposition m'a beaucoup marqué.
-Je limite mon temps sur les réseaux sociaux.
-Il faudrait réduire le gaspillage dans les cantines.
-Même si cela demande des efforts, le recyclage reste utile.
-Les transports en commun permettent de moins polluer.
-Je ferai plus attention à ma consommation d'énergie.
-Je voudrais déposer une plainte, car le service n'a pas été fourni.
-Il y a eu un malentendu au moment de la réservation.
-Serait-il possible d'obtenir un remboursement partiel ?
-En attendant, nous pouvons proposer une solution provisoire.
-soutenir
-résoudre
-permettre
-devoir
-recevoir
-conduire
-craindre
-joindre
-apercevoir
-décrire
-convaincre
-atteindre
-prévoir
-obtenir
-maintenir
-interrompre
-s'inscrire
-se souvenir
-s'apercevoir
-exprimer
-améliorer
-gérer
-participer
-remplacer
-jeter
-envoyer
-nettoyer
-traduire
-répondre
-réfléchir
-choisir
-l'enjeu
-un point de vue
-un argument
-une nuance
-un compromis
-la pollution
-le recyclage
-une énergie renouvelable
-le gaspillage
-une conséquence
-un entretien
-un stage
-une compétence
-un délai
-une réunion
-un logement
-les transports en commun
-une démarche
-une association
-une habitude
-un reportage
-un abonnement
-un réseau social
-une critique
-une exposition
-un remboursement
-une panne
-une plainte
-une solution provisoire
-un malentendu
-une priorité
-un avantage
-un inconvénient
-une preuve
-un désaccord
-une proposition
-un débat
-une hypothèse
-le climat
-une ressource
-une espèce menacée
-le tri des déchets
-une consommation responsable
-une empreinte carbone
-la biodiversité
-un espace vert
-un diplôme
-une formation
-une candidature
-un contrat
-un salaire
-une équipe
-une responsabilité
-un objectif
-une facture
-un quartier
-un locataire
-un propriétaire
-une assurance
-un rendez-vous administratif
-une file d'attente
-une pièce d'identité
-un article
-un documentaire
-une bande-annonce
-un lecteur
-un avis en ligne
-une source fiable
-une fausse information
-un patrimoine
-un conflit
-un retard
-une urgence
-un risque
-une amélioration
-une réparation
-une négociation
-une réclamation
-un symptôme
-une ordonnance
-un traitement
-une fatigue
-un équilibre
-le bien-être
-un congé maladie
-une prévention
-une réduction
-un devis
-une garantie
-un versement
-un reçu
-une livraison
-un achat d'occasion
-un comparateur de prix
-un trajet
-une correspondance
-un embouteillage
-une réservation
-un hébergement
-une frontière
+Certes, la mesure est coûteuse ; il n'en demeure pas moins qu'elle répond à une urgence sociale.
+Quand bien même l'hypothèse serait fragile, elle mérite d'être examinée.
+La prise en compte des effets indirects modifie sensiblement l'analyse.
+La mise en œuvre du dispositif exige une coordination étroite.
+Il est rare qu'une réforme fasse consensus dès son annonce.
+C'est le seul argument qui puisse réellement étayer cette thèse.
+Encore faut-il que les données soient suffisamment fiables.
+Sans doute convient-il de distinguer deux niveaux d'analyse.
+La question est d'autant plus sensible qu'elle touche à la vie privée.
+Le rapport simplifie le problème, au risque d'en masquer les causes profondes.
+L'auteur ne réfute pas l'objection ; il la déplace vers un autre terrain.
+Cette formulation présuppose que le progrès technique serait nécessairement bénéfique.
+Si les données avaient été rendues publiques, le débat aurait sans doute pris une autre tournure.
+Si cette interprétation prévalait, elle modifierait profondément la portée du texte.
+Bien que la mesure paraisse consensuelle, elle soulève des objections de fond.
+Loin de clarifier le débat, cette formule en accentue l'ambiguïté.
+Il se pourrait que cette évolution traduise moins un progrès qu'un déplacement du problème.
+Force est de constater que les résultats ne corroborent qu'en partie l'hypothèse initiale.
+Ce constat invite à reconsidérer la manière dont le problème a été posé.
+Une telle lecture permet de relier l'œuvre à son arrière-plan idéologique.
+On peut y voir moins une rupture qu'une reconfiguration progressive des pratiques.
+Plusieurs conséquences en découlent, sans que le rapport les explicite pleinement.
+Selon l'auteur, cette contradiction n'est qu'apparente ; encore faudrait-il qu'il l'étaye davantage.
+La thèse consiste à soutenir que la neutralité technique masque des choix politiques.
+Le cadre auquel se réfère l'auteur demeure pourtant insuffisamment défini.
+L'angle à partir duquel le problème est abordé infléchit fortement la conclusion.
+Replacée dans son contexte historique, cette décision apparaît moins paradoxale.
+Étant donné l'ampleur des données disponibles, une lecture strictement intuitive serait fragile.
+La remise en cause de ce modèle ne signifie pas pour autant son abandon pur et simple.
+Remettre ce modèle en cause permet de mieux en cerner les limites.
+Ce qui pose problème, ce n'est pas la réforme elle-même, mais la manière dont elle a été légitimée.
+C'est précisément cette ambiguïté que le rapport aurait dû expliciter.
+Si convaincante que soit cette interprétation, elle ne résout pas toutes les contradictions du texte.
+Tout discutable qu'il soit, ce compromis a permis d'endiguer la crise institutionnelle.
+Il convient de replacer cette affirmation dans son contexte historique.
+Cette lecture, séduisante au premier abord, appelle plusieurs réserves.
+Encore faut-il distinguer la corrélation de la causalité.
+L'argument ne tient que si l'on accepte une définition très restrictive du terme.
+À défaut de preuve décisive, il faut se garder de conclure trop vite.
+Ce phénomène ne saurait être réduit à une simple question de moyens.
+La difficulté réside moins dans le principe que dans sa mise en œuvre.
+On voit ici se dessiner une ligne de fracture durable.
+Toute réforme suppose des arbitrages que le débat public tend à occulter.
+La mesure risque d'entraîner des effets pervers difficilement prévisibles.
+Cette exigence de transparence se heurte à l'opacité des systèmes automatisés.
+Les plateformes façonnent l'espace public sans toujours en assumer la responsabilité.
+La viralité d'un contenu ne garantit nullement sa fiabilité.
+Il serait réducteur d'y voir uniquement une crise de confiance.
+Je nuancerais toutefois cette conclusion sur deux points.
+Votre raisonnement est cohérent, mais il repose sur un présupposé discutable.
+Il ne s'agit pas de trancher, mais de rendre visibles les tensions à l'œuvre.
+Cette œuvre interroge les limites entre mémoire individuelle et récit collectif.
+Le texte joue sur l'ambivalence du narrateur pour déstabiliser le lecteur.
+Cette scène fonctionne comme un contrepoint au discours dominant.
+Encore faudrait-il démontrer que cette corrélation n'est pas fortuite.
+L'exemple est éclairant, mais il ne saurait tenir lieu de preuve générale.
+Cette distinction permet d'éviter un amalgame fréquent dans le débat.
+Il serait hasardeux d'extrapoler à partir d'un corpus aussi restreint.
+Cette objection oblige à reformuler la thèse de manière plus rigoureuse.
+La proposition gagne en cohérence dès lors qu'on en explicite les présupposés.
+À supposer que l'hypothèse soit valide, ses implications restent considérables.
+L'enjeu n'est pas seulement juridique ; il est aussi symbolique et politique.
+Une telle décision déplacerait la responsabilité sans résoudre le problème de fond.
+La réforme se heurte à des intérêts divergents et à des contraintes institutionnelles.
+Reste à savoir qui assumera le coût social de cette transition.
+La légitimité d'une politique dépend aussi de la manière dont elle est expliquée.
+Le dispositif prétend rationaliser les choix, quitte à invisibiliser certains publics.
+Le cadrage médiatique infléchit la perception du problème avant même le débat.
+L'automatisation promet l'efficacité, mais elle déplace aussi les zones d'opacité.
+La personnalisation algorithmique tend à enfermer l'usager dans un horizon prévisible.
+La question n'est pas de rejeter la technique, mais d'en discuter les finalités.
+Cette lecture paraît convaincante, pour peu qu'on admette son cadre théorique.
+Je souscris à l'idée générale, tout en contestant la portée de la conclusion.
+Il faut tenir ensemble ces deux exigences, même si elles semblent contradictoires.
+Là réside précisément l'ambivalence de la situation.
+Le propos gagne à être nuancé plutôt qu'à être réfuté en bloc.
+Le roman met en scène une mémoire fragmentaire, travaillée par le non-dit.
+La mise en abyme brouille la frontière entre représentation et commentaire.
+Ce choix esthétique révèle une forme de défiance envers les récits linéaires.
+L'œuvre ne se contente pas d'illustrer une époque ; elle en interroge les mythes.
+L'entretien a fait émerger des divergences que la synthèse initiale avait gommées.
+Il faudra arbitrer entre ambition méthodologique et faisabilité opérationnelle.
+Le rapport devrait expliciter ses limites afin d'éviter toute surinterprétation.
+Cette recommandation suppose une coordination fine entre acteurs publics et privés.
+étayer
+circonscrire
+préconiser
+s'affranchir
+éluder
+démentir
+nuancer
+réfuter
+découler
+prévaloir
+corroborer
+relativiser
+expliciter
+contextualiser
+conceptualiser
+problématiser
+articuler
+infléchir
+hiérarchiser
+stigmatiser
+légitimer
+endiguer
+imputer
+résorber
+décrypter
+synthétiser
+un parti pris
+une mise en abyme
+une aporie
+un glissement sémantique
+une rhétorique
+une démonstration étayée
+un contrepoint
+une réserve
+une ambivalence
+la vraisemblance
+un prisme
+une grille de lecture
+un faisceau d'indices
+une causalité diffuse
+une corrélation fallacieuse
+un levier d'action
+une ligne de fracture
+un arbitrage
+une dérive
+la redevabilité
+une mesure coercitive
+un effet pervers
+une injonction contradictoire
+un clivage
+la désinformation
+une chambre d'écho
+une opacité algorithmique
+une sobriété numérique
+une posture intellectuelle
+un imaginaire collectif
+une assertion péremptoire
+un raisonnement spécieux
+une concession rhétorique
+une prémisse implicite
+une objection de principe
+un postulat contestable
+une nuance de taille
+une formulation équivoque
+un implicite discursif
+une litote
+une périphrase
+un registre soutenu
+une polysémie
+une connivence culturelle
+un canon esthétique
+une réception critique
+une filiation intellectuelle
+une transgression des codes
+un arrière-plan idéologique
+une lecture diachronique
+une variable confondante
+un ordre de grandeur
+une hypothèse heuristique
+un biais de confirmation
+une granularité fine
+un raisonnement contrefactuel
+une gouvernance multipartite
+un principe de subsidiarité
+une justice réparatrice
+une externalité négative
+une précarité structurelle
+un consensus mou
+une instrumentalisation politique
+un verrou institutionnel
+une asymétrie d'information
+une captation de l'attention
+un biais algorithmique
+une traçabilité des données
+une désintermédiation
+une empreinte informationnelle
+un modèle économique prédateur
+une stratégie d'évitement
+une note de cadrage
+un retour d'expérience
+une veille stratégique
+un cadrage méthodologique
+une montée en généralité
+un arbitrage budgétaire
+une contrainte réglementaire
+une résilience écosystémique
+un seuil critique
+une incertitude irréductible
+une approche systémique
+un protocole expérimental
+une robustesse empirique
+une transition bas carbone

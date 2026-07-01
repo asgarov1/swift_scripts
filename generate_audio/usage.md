@@ -2,6 +2,7 @@
 ```
 python3 collect_foreign.py ../../german_a1/german_a1
 python3 generate_audio_clips.py --lang de
+python3 generate_audio_clips.py --lang sv
 ```
 
 ---
@@ -34,4 +35,13 @@ python3 -m pip install edge-tts
 ```
 ---
 
-make start <path_to_folder> <language>
+make start <path_to_folder> <language> [output_dir]
+
+Examples:
+```
+make start ../../german_a1/german_a1 de
+make start ../../swedish_a1/swedish_a1 sv ../swedish_audio
+./do.sh ../../swedish_a1/swedish_a1 sv ../swedish_audio
+```
+
+Supported languages: de, es, fr, it, sv.
