@@ -49,10 +49,10 @@ make start B1,660,320,,300,#021A3D,,5 fr,195,560,,220,white,,3 ançais,340,560,,
 ### Swedish
 - A1:
 ```
-make start svenska,756,820,,70,white,,2 A1,756,900,,110,white,,3
+make start A1,765,805,,160,white,,3
 ```
 
 - A2:
 ```
-make start svenska,240,400,,210,white,,3 A2,440,610,,450,white,,5
+make start A2,765,805,,160,white,,3
 ```

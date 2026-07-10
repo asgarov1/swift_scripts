@@ -19,15 +19,17 @@ import argparse
 import csv
 import json
 import sys
+from collections.abc import Callable
 from pathlib import Path
 
-from PIL import Image, ImageDraw, ImageEnhance, ImageFont, ImageOps
+from PIL import Image, ImageColor, ImageDraw, ImageEnhance, ImageFont, ImageOps
 
 DEFAULT_FONT_CANDIDATES = [
     "/System/Library/Fonts/Helvetica.ttc",
     "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
     "/Library/Fonts/Arial.ttf",
 ]
+DARKEN_FACTOR = 0.55
 
 
 def load_font(path: str | None, size: int) -> ImageFont.FreeTypeFont:
@@ -40,23 +42,47 @@ def load_font(path: str | None, size: int) -> ImageFont.FreeTypeFont:
     return ImageFont.load_default()
 
 
-def draw_text(draw: ImageDraw.ImageDraw, spec: dict, default_color: str, default_weight: int) -> None:
+def adjust_color_brightness(color: str | tuple | list, factor: float) -> tuple[int, int, int, int]:
+    if isinstance(color, (tuple, list)):
+        red, green, blue, *alpha = color
+        return (
+            int(red * factor),
+            int(green * factor),
+            int(blue * factor),
+            int(alpha[0]) if alpha else 255,
+        )
+    red, green, blue, alpha = ImageColor.getcolor(color, "RGBA")
+    return (int(red * factor), int(green * factor), int(blue * factor), alpha)
+
+
+def draw_text(
+    draw: ImageDraw.ImageDraw,
+    spec: dict,
+    default_color: str,
+    default_weight: int,
+    color_transform: Callable[[str | tuple | list], str | tuple | list] | None = None,
+) -> None:
     text = spec["text"]
     x = int(spec.get("x", 0))
     y = int(spec.get("y", 0))
     font = load_font(spec.get("font"), int(spec.get("font_size", 72)))
     fill = spec.get("color", default_color)
+    if color_transform:
+        fill = color_transform(fill)
     # "weight" thickens the glyph in its own fill color. "stroke_width" is a
     # legacy alias. If "stroke_color" is set, it's treated as a real outline.
     weight = int(spec.get("weight", spec.get("stroke_width", default_weight)))
     kwargs = dict(font=font, fill=fill, anchor=spec.get("anchor", "la"))
     if weight > 0:
         kwargs["stroke_width"] = weight
-        kwargs["stroke_fill"] = spec.get("stroke_color", fill)
+        stroke_fill = spec.get("stroke_color", fill)
+        if color_transform and "stroke_color" in spec:
+            stroke_fill = color_transform(stroke_fill)
+        kwargs["stroke_fill"] = stroke_fill
     draw.text((x, y), text, **kwargs)
 
 
-def darken(base: Image.Image, factor: float = 0.55) -> Image.Image:
+def darken(base: Image.Image, factor: float = DARKEN_FACTOR) -> Image.Image:
     """Darken the image for the dark-mode icon variant."""
     alpha = base.split()[-1]
     out = ImageEnhance.Brightness(base.convert("RGB")).enhance(factor).convert("RGBA")
@@ -73,6 +99,20 @@ def grayscale(base: Image.Image) -> Image.Image:
     return out
 
 
+def render_text_overlay(
+    size: tuple[int, int],
+    specs: list[dict],
+    default_color: str,
+    default_weight: int,
+    color_transform: Callable[[str | tuple | list], str | tuple | list] | None = None,
+) -> Image.Image:
+    overlay = Image.new("RGBA", size, (0, 0, 0, 0))
+    draw = ImageDraw.Draw(overlay)
+    for spec in specs:
+        draw_text(draw, spec, default_color, default_weight, color_transform)
+    return overlay
+
+
 def render_variants(
     input_path: Path,
     specs: list[dict],
@@ -83,13 +123,17 @@ def render_variants(
     img = Image.open(input_path).convert("RGBA")
     if img.size != (canvas_size, canvas_size):
         img = img.resize((canvas_size, canvas_size), Image.LANCZOS)
-    overlay = Image.new("RGBA", img.size, (0, 0, 0, 0))
-    draw = ImageDraw.Draw(overlay)
-    for spec in specs:
-        draw_text(draw, spec, default_color, default_weight)
+    overlay = render_text_overlay(img.size, specs, default_color, default_weight)
+    dark_overlay = render_text_overlay(
+        img.size,
+        specs,
+        default_color,
+        default_weight,
+        lambda color: adjust_color_brightness(color, DARKEN_FACTOR),
+    )
     return {
         "light": Image.alpha_composite(img, overlay),
-        "dark": Image.alpha_composite(darken(img), overlay),
+        "dark": Image.alpha_composite(darken(img), dark_overlay),
         "tinted": Image.alpha_composite(grayscale(img), overlay),
     }
 
