@@ -30,6 +30,7 @@ APP_LANGUAGES = [
     ("italian", "it"),
     ("arabic", "ar"),
     ("french", "fr"),
+    ("finnish", "fi"),
     ("bengali", "bn"),
     ("portuguese", "pt"),
     ("russian", "ru"),

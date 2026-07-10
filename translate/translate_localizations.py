@@ -27,7 +27,7 @@ from typing import Any, Callable
 
 
 APP_LOCALES = [
-    "en", "zh-Hans", "hi", "es", "ar", "fr", "bn", "pt", "ru", "ur", "id", "de",
+    "en", "zh-Hans", "hi", "es", "ar", "fr", "fi", "bn", "pt", "ru", "ur", "id", "de",
     "ja", "sw", "mr", "te", "tr", "ta", "yue-Hant", "vi", "sh", "hu", "pl", "bg",
 ]
 
@@ -428,7 +428,7 @@ def validate_locale_maps(data: Any, path: Path) -> list[str]:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Translate Jlingo JSON files into the 24 supported localization maps.",
+        description="Translate Jlingo JSON files into the supported localization maps.",
     )
     parser.add_argument(
         "paths",
