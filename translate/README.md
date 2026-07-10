@@ -58,6 +58,28 @@ make start ../../french-b2/french-b2 fr ARGS='--dry-run'
 make start ../../spanish-b1/spanish-b1 es ARGS='--overwrite'
 ```
 
+## One-Off Phrase Translation
+
+To translate an English word or phrase into every supported app localization,
+run:
+
+```sh
+make translate good morning
+```
+
+The command prints one line per target `AppLanguage` case:
+
+```text
+mandarinChinese (zh-Hans  ): 早上好
+hindi           (hi       ): सुप्रभात
+```
+
+Use `ARGS='--json'` when you want machine-readable output:
+
+```sh
+make translate good morning ARGS='--json'
+```
+
 ## AppConfig Localizations
 
 To fill missing Swift `AppConfig` localization dictionaries, run:

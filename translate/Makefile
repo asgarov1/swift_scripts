@@ -4,12 +4,14 @@ SHELL := /bin/bash
 PYTHON := python3
 SCRIPT := translate_localizations.py
 APPCONFIG_SCRIPT := translate_appconfig.py
+PHRASE_SCRIPT := translate_phrase.py
 ARGS ?=
 
 path_to_folder := $(word 2,$(MAKECMDGOALS))
 source_lang := $(word 3,$(MAKECMDGOALS))
+phrase := $(wordlist 2,$(words $(MAKECMDGOALS)),$(MAKECMDGOALS))
 
-.PHONY: start translate-appconfig help FORCE
+.PHONY: start translate translate-appconfig help FORCE
 
 start:
 	@if [[ "$(words $(MAKECMDGOALS))" -ne 3 ]]; then echo "Usage: make start <path_to_folder> <source_language> [ARGS='--dry-run']"; exit 1; fi
@@ -21,10 +23,16 @@ translate-appconfig:
 	@if [[ ! -e "$(path_to_folder)" ]]; then echo "Error: input path does not exist: $(path_to_folder)"; exit 1; fi
 	@$(PYTHON) "$(APPCONFIG_SCRIPT)" --source-lang "$(source_lang)" $(ARGS) "$(path_to_folder)"
 
+translate:
+	@if [[ "$(words $(MAKECMDGOALS))" -lt 2 ]]; then echo "Usage: make translate <english word or phrase>"; exit 1; fi
+	@$(PYTHON) "$(PHRASE_SCRIPT)" $(ARGS) "$(phrase)"
+
 help:
 	@echo "Usage: make start <path_to_folder> <source_language> [ARGS='--dry-run']"
 	@echo "Example: make start ../../french-b2/french-b2 fr"
 	@echo "Example: make start ../../spanish-b1/spanish-b1 es ARGS='--overwrite'"
+	@echo "Usage: make translate <english word or phrase> [ARGS='--json']"
+	@echo "Example: make translate good morning"
 	@echo "Usage: make translate-appconfig <path_to_swift_file_or_folder> <source_language> [ARGS='--dry-run']"
 	@echo "Example: make translate-appconfig ../../Swedish/swedish-a2/swedish-a2 english"
 	@echo "Example: make translate-appconfig ../../Swedish/swedish-a2/swedish-a2/swedish_a2App.swift en ARGS='--dry-run'"
