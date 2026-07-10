@@ -58,6 +58,31 @@ make start ../../french-b2/french-b2 fr ARGS='--dry-run'
 make start ../../spanish-b1/spanish-b1 es ARGS='--overwrite'
 ```
 
+## AppConfig Localizations
+
+To fill missing Swift `AppConfig` localization dictionaries, run:
+
+```sh
+make translate-appconfig <path_to_swift_file_or_folder> <source_language>
+```
+
+Example:
+
+```sh
+make translate-appconfig ../../Swedish/swedish-a2/swedish-a2 english
+```
+
+This updates these AppConfig fields when present:
+
+- `appNameLocalizations`
+- `appTaglineLocalizations`
+- `languageNameLocalizations`
+
+The source language can be an `AppLanguage` case such as `english` or a raw
+locale value such as `en`. Existing localized values are preserved unless
+`ARGS='--overwrite'` is passed. The supported locale list is kept at the top of
+`translate_appconfig.py` and mirrors `JlingoLearningKit`'s `AppLanguage` cases.
+
 ## Direct Script Usage
 
 You can also call the script directly:
