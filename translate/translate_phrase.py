@@ -17,6 +17,7 @@ from pathlib import Path
 from translate_appconfig import (
     AppLanguage,
     TranslationError,
+    normalize_app_language,
     read_cache,
     normalize_source_language,
     translate,
@@ -25,9 +26,20 @@ from translate_appconfig import (
 )
 
 
-class QuietProgress:
+class PhraseProgress:
+    def __init__(self, quiet: bool) -> None:
+        self.quiet = quiet
+        self.current = 0
+
     def log(self, text: str, source: AppLanguage, target: AppLanguage) -> None:
-        return None
+        self.current += 1
+        if not self.quiet:
+            print(
+                f"[{self.current}] translating {text!r} "
+                f"from .{source.case_name} to .{target.case_name}",
+                file=sys.stderr,
+                flush=True,
+            )
 
     def log_result(self, result: str) -> None:
         return None
@@ -63,6 +75,11 @@ def parse_args() -> argparse.Namespace:
         help="Source AppLanguage case or raw value. Default: english.",
     )
     parser.add_argument(
+        "-t",
+        "--target-lang",
+        help="Translate only to this AppLanguage case or raw value, e.g. italian or it.",
+    )
+    parser.add_argument(
         "--cache",
         type=Path,
         default=Path("scripts/generated/translation_cache.json"),
@@ -78,6 +95,28 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Include the source language in the printed results.",
     )
+    parser.add_argument(
+        "--quiet",
+        action="store_true",
+        help="Do not print per-language progress to stderr.",
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Do not call the network; print placeholder translations.",
+    )
+    parser.add_argument(
+        "--retries",
+        type=int,
+        default=2,
+        help="Translation attempts per language. Default: 2.",
+    )
+    parser.add_argument(
+        "--timeout",
+        type=float,
+        default=8,
+        help="Network timeout in seconds per translation attempt. Default: 8.",
+    )
     return parser.parse_args()
 
 
@@ -86,23 +125,41 @@ def main() -> int:
     text = args.text.strip()
     if not text:
         raise TranslationError("text cannot be empty")
+    if args.retries < 1:
+        raise TranslationError("--retries must be at least 1")
+    if args.timeout <= 0:
+        raise TranslationError("--timeout must be greater than 0")
 
     source = normalize_source_language(args.source_lang)
+    target = normalize_app_language(args.target_lang, "target language") if args.target_lang else None
     cache = read_cache(args.cache)
-    progress = QuietProgress()
+    progress = PhraseProgress(args.quiet)
 
     results: dict[str, dict[str, str]] = {}
-    output_languages = [
-        language
-        for language in SUPPORTED_LANGUAGES
-        if args.include_source or language != source
-    ]
+    if target:
+        output_languages = [target]
+    else:
+        output_languages = [
+            language
+            for language in SUPPORTED_LANGUAGES
+            if args.include_source or language != source
+        ]
 
     for language in output_languages:
         translated = (
             text
             if language == source
-            else translate(text, source, language, cache, args.cache, False, progress)
+            else translate(
+                text,
+                source,
+                language,
+                cache,
+                args.cache,
+                args.dry_run,
+                progress,
+                args.retries,
+                args.timeout,
+            )
         )
         results[language.case_name] = {
             "locale": language.raw_value,

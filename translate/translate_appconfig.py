@@ -126,16 +126,20 @@ class TranslationProgress:
         )
 
 
-def normalize_source_language(value: str) -> AppLanguage:
+def normalize_app_language(value: str, label: str = "language") -> AppLanguage:
     trimmed = value.strip().lstrip(".")
     if trimmed in LANGUAGE_BY_CASE:
         return LANGUAGE_BY_CASE[trimmed]
     if trimmed in LANGUAGE_BY_RAW:
         return LANGUAGE_BY_RAW[trimmed]
     raise TranslationError(
-        f"unsupported source language {value!r}; use an AppLanguage case "
+        f"unsupported {label} {value!r}; use an AppLanguage case "
         "such as 'english' or a raw value such as 'en'"
     )
+
+
+def normalize_source_language(value: str) -> AppLanguage:
+    return normalize_app_language(value, "source language")
 
 
 def swift_unescape(value: str) -> str:
@@ -193,6 +197,7 @@ def request_translation(
     target: AppLanguage,
     progress: TranslationProgress,
     retries: int = 4,
+    timeout: float = 25,
 ) -> str:
     params = urllib.parse.urlencode({
         "client": "gtx",
@@ -206,7 +211,7 @@ def request_translation(
 
     for attempt in range(retries):
         try:
-            with urllib.request.urlopen(url, timeout=25) as response:
+            with urllib.request.urlopen(url, timeout=timeout) as response:
                 payload = json.loads(response.read().decode("utf-8"))
             translated = "".join(part[0] for part in payload[0] if part and part[0]).strip()
             if not translated:
@@ -229,6 +234,8 @@ def translate(
     cache_path: Path,
     dry_run: bool,
     progress: TranslationProgress,
+    retries: int = 4,
+    timeout: float = 25,
 ) -> str:
     if source == target:
         return text
@@ -239,7 +246,7 @@ def translate(
     elif dry_run:
         result = f"[.{target.case_name}] {text}"
     else:
-        result = request_translation(text, source, target, progress)
+        result = request_translation(text, source, target, progress, retries, timeout)
         cache[key] = result
         write_cache(cache_path, cache)
     progress.log_result(result)

@@ -80,6 +80,14 @@ Use `ARGS='--json'` when you want machine-readable output:
 make translate good morning ARGS='--json'
 ```
 
+Use `TARGET_LANG` to translate to only one app language. It accepts either the
+`AppLanguage` case or the locale value:
+
+```sh
+make translate good morning TARGET_LANG=italian
+make translate good morning TARGET_LANG=it
+```
+
 ## AppConfig Localizations
 
 To fill missing Swift `AppConfig` localization dictionaries, run:
