@@ -23,7 +23,7 @@ import time
 import urllib.parse
 import urllib.request
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 
 APP_LOCALES = [
@@ -41,7 +41,7 @@ DEFAULT_FILENAMES = [
 # Google Translate API language codes do not always match the app locale keys.
 GOOGLE_CODES = {
     "zh-Hans": "zh-CN",
-    "yue-Hant": "zh-TW",
+    "yue-Hant": "yue",
     # Google no longer exposes Serbo-Croatian directly here. Croatian is the
     # closest Latin-script fallback for the app's historical "sh" key.
     "sh": "hr",
@@ -50,6 +50,43 @@ GOOGLE_CODES = {
 
 class TranslationError(RuntimeError):
     pass
+
+
+class TranslationProgress:
+    def __init__(self, total: int) -> None:
+        self.current = 0
+        self.total = total
+
+    def log(self, text: str, source_lang: str, target_locale: str) -> None:
+        self.current += 1
+        print(
+            f"[{self.current}/{self.total}] translating {text!r} "
+            f"from {source_lang} to {target_locale}",
+            flush=True,
+        )
+
+    def log_result(self, result: str) -> None:
+        print(
+            f"[{self.current}/{self.total}]\tresult: {result!r}",
+            flush=True,
+        )
+
+    def log_error(
+        self,
+        text: str,
+        source_lang: str,
+        target_locale: str,
+        attempt: int,
+        retries: int,
+        error: Exception,
+    ) -> None:
+        print(
+            f"[{self.current}/{self.total}] ERROR translating {text!r} "
+            f"from {source_lang} to {target_locale} "
+            f"(attempt {attempt}/{retries}): {error}",
+            file=sys.stderr,
+            flush=True,
+        )
 
 
 def google_code(locale: str) -> str:
@@ -70,7 +107,14 @@ def load_json(path: Path) -> Any:
 
 
 def save_json(path: Path, data: Any) -> None:
-    path.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    write_text_atomic(path, json.dumps(data, ensure_ascii=False, indent=2) + "\n")
+
+
+def write_text_atomic(path: Path, text: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary_path = path.with_name(f".{path.name}.tmp")
+    temporary_path.write_text(text, encoding="utf-8")
+    temporary_path.replace(path)
 
 
 def read_cache(path: Path) -> dict[str, str]:
@@ -86,15 +130,23 @@ def read_cache(path: Path) -> dict[str, str]:
 
 
 def write_cache(path: Path, cache: dict[str, str]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(cache, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    write_text_atomic(
+        path,
+        json.dumps(cache, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+    )
 
 
 def cache_key(source_lang: str, target_locale: str, text: str) -> str:
     return json.dumps([google_code(source_lang), google_code(target_locale), text], ensure_ascii=False)
 
 
-def request_translation(text: str, source_lang: str, target_locale: str, retries: int = 4) -> str:
+def request_translation(
+    text: str,
+    source_lang: str,
+    target_locale: str,
+    progress: TranslationProgress,
+    retries: int = 4,
+) -> str:
     source = google_code(source_lang)
     target = google_code(target_locale)
     params = urllib.parse.urlencode({
@@ -118,6 +170,14 @@ def request_translation(text: str, source_lang: str, target_locale: str, retries
             return translated
         except Exception as exc:
             last_error = exc
+            progress.log_error(
+                text,
+                source_lang,
+                target_locale,
+                attempt + 1,
+                retries,
+                exc,
+            )
             time.sleep(0.6 * (attempt + 1))
 
     raise TranslationError(f"translation failed for {text!r} -> {target_locale}: {last_error}")
@@ -128,17 +188,25 @@ def translate(
     source_lang: str,
     target_locale: str,
     cache: dict[str, str],
+    cache_path: Path,
     dry_run: bool,
+    progress: TranslationProgress,
 ) -> str:
     if target_locale == source_lang:
         return text
+    progress.log(text, source_lang, target_locale)
     key = cache_key(source_lang, target_locale, text)
     if key in cache:
-        return cache[key]
-    if dry_run:
-        return f"[{target_locale}] {text}"
-    result = request_translation(text, source_lang, target_locale)
-    cache[key] = result
+        result = cache[key]
+    elif dry_run:
+        result = f"[{target_locale}] {text}"
+    else:
+        result = request_translation(text, source_lang, target_locale, progress)
+        cache[key] = result
+        # Persist the result immediately. If the process stops before the content
+        # file checkpoint, the next run can reuse this cached translation.
+        write_cache(cache_path, cache)
+    progress.log_result(result)
     return result
 
 
@@ -148,11 +216,11 @@ def source_for_map(
     source_text: str | None,
     fallback_locale: str,
 ) -> str:
-    if source_text:
-        return source_text
     source_value = normalize_text(mapping.get(source_lang))
     if source_value:
         return source_value
+    if source_text:
+        return source_text
     fallback_value = normalize_text(mapping.get(fallback_locale))
     if fallback_value:
         return fallback_value
@@ -168,8 +236,11 @@ def fill_map(
     source_text: str | None,
     fallback_locale: str,
     cache: dict[str, str],
+    cache_path: Path,
     overwrite: bool,
     dry_run: bool,
+    progress: TranslationProgress,
+    checkpoint: Callable[[], None],
 ) -> int:
     source = source_for_map(mapping, source_lang, source_text, fallback_locale)
     changed = 0
@@ -178,10 +249,23 @@ def fill_map(
         current = normalize_text(mapping.get(locale))
         if current and not overwrite:
             continue
-        value = source if locale == source_lang else translate(source, source_lang, locale, cache, dry_run)
+        value = (
+            source
+            if locale == source_lang
+            else translate(
+                source,
+                source_lang,
+                locale,
+                cache,
+                cache_path,
+                dry_run,
+                progress,
+            )
+        )
         if mapping.get(locale) != value:
             mapping[locale] = value
             changed += 1
+            checkpoint()
 
     ordered = {locale: mapping[locale] for locale in APP_LOCALES}
     mapping.clear()
@@ -194,12 +278,16 @@ def process_item(
     source_lang: str,
     fallback_locale: str,
     cache: dict[str, str],
+    cache_path: Path,
     overwrite: bool,
     dry_run: bool,
+    progress: TranslationProgress,
+    checkpoint: Callable[[], None],
 ) -> int:
     changed = 0
 
-    # For learner content, the foreign phrase/word is the cleanest source text.
+    # For learner content, use an authored value for the requested source locale
+    # when one exists. Otherwise, the foreign phrase/word is the cleanest source.
     learner_source = normalize_text(item.get("foreign")) or normalize_text(item.get("infinitive")) or None
     if isinstance(item.get("translations"), dict):
         changed += fill_map(
@@ -208,8 +296,11 @@ def process_item(
             learner_source,
             fallback_locale,
             cache,
+            cache_path,
             overwrite,
             dry_run,
+            progress,
+            checkpoint,
         )
 
     # Grammar title/explanation maps often already contain the authored source
@@ -221,8 +312,11 @@ def process_item(
             None,
             fallback_locale,
             cache,
+            cache_path,
             overwrite,
             dry_run,
+            progress,
+            checkpoint,
         )
     if isinstance(item.get("explanations"), dict):
         changed += fill_map(
@@ -231,8 +325,11 @@ def process_item(
             None,
             fallback_locale,
             cache,
+            cache_path,
             overwrite,
             dry_run,
+            progress,
+            checkpoint,
         )
 
     for example in item.get("examples", []):
@@ -245,11 +342,43 @@ def process_item(
             example_source,
             fallback_locale,
             cache,
+            cache_path,
             overwrite,
             dry_run,
+            progress,
+            checkpoint,
         )
 
     return changed
+
+
+def count_map_translations(
+    mapping: dict[str, Any],
+    source_lang: str,
+    overwrite: bool,
+) -> int:
+    return sum(
+        1
+        for locale in APP_LOCALES
+        if locale != source_lang
+        and (overwrite or not normalize_text(mapping.get(locale)))
+    )
+
+
+def count_item_translations(
+    item: dict[str, Any],
+    source_lang: str,
+    overwrite: bool,
+) -> int:
+    total = 0
+    for field in ("translations", "titles", "explanations"):
+        mapping = item.get(field)
+        if isinstance(mapping, dict):
+            total += count_map_translations(mapping, source_lang, overwrite)
+    for example in item.get("examples", []):
+        if isinstance(example, dict) and isinstance(example.get("translations"), dict):
+            total += count_map_translations(example["translations"], source_lang, overwrite)
+    return total
 
 
 def resolve_files(paths: list[Path]) -> list[Path]:
@@ -346,17 +475,42 @@ def main() -> int:
 
     files = resolve_files(args.paths)
     cache = read_cache(args.cache)
+    loaded_files = [(path, load_json(path)) for path in files]
+    for path, data in loaded_files:
+        if not isinstance(data, list):
+            raise TranslationError(f"{path}: top-level JSON must be a list")
+
+    translation_total = sum(
+        count_item_translations(item, source_lang, args.overwrite)
+        for _path, data in loaded_files
+        for item in data
+        if isinstance(item, dict)
+    )
+    progress = TranslationProgress(translation_total)
+
     total_changed = 0
     all_issues: list[str] = []
 
-    for path in files:
-        data = load_json(path)
+    for path, data in loaded_files:
         changed = 0
-        if not isinstance(data, list):
-            raise TranslationError(f"{path}: top-level JSON must be a list")
+
+        def checkpoint() -> None:
+            if not args.dry_run:
+                save_json(path, data)
+
         for item in data:
             if isinstance(item, dict):
-                changed += process_item(item, source_lang, fallback_locale, cache, args.overwrite, args.dry_run)
+                changed += process_item(
+                    item,
+                    source_lang,
+                    fallback_locale,
+                    cache,
+                    args.cache,
+                    args.overwrite,
+                    args.dry_run,
+                    progress,
+                    checkpoint,
+                )
 
         issues = validate_locale_maps(data, path)
         all_issues.extend(issues)
