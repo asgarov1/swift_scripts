@@ -1,138 +1,460 @@
-Jag har läst boken.
-Hon har varit i Göteborg.
-Vi har arbetat hela dagen.
-De har skrivit ett brev.
-Jag vet att hon inte kommer.
-Eftersom jag inte har tid stannar jag hemma.
-Jag ringer när jag kommer hem.
-Vi går ut fastän det regnar.
-Den här väskan är billigare.
-Anna är äldst i gruppen.
-den nya lägenheten
-de röda skorna
-Hon skyndar sig.
-Vi sätter oss här.
-De hjälper varandra.
-Vi träffar varandra varje vecka.
-Mannen som bor här är läkare.
-Boken som jag köpte var dyr.
-Jag tänker söka jobbet.
-Vi tänker flytta i höst.
-Det kommer att regna imorgon.
-Priserna kommer att stiga.
-Om jag hinner, ringer jag dig.
-Vi stannar hemma om det snöar.
-Jag skulle vilja boka ett rum.
-Skulle du kunna hjälpa mig?
-Jag tycker om filmen.
-Hon hämtar ut medicinen.
-Jag lagar ofta mat hemma.
-Hon är aldrig sen.
-Vi har väntat i en timme.
-Bussen går om tio minuter.
-Jag skulle vilja boka en tid.
-Passar det på torsdag?
-Kan vi flytta mötet?
-Jag blir ungefär tio minuter sen.
-Tåget är försenat.
-Var måste jag byta?
-Går den här bussen till centrum?
-Jag vill ha en tur-och-retur-biljett.
-Jag har ont i halsen.
-Hur länge har du haft feber?
-Jag behöver hämta ut ett recept.
-Du bör vila ett par dagar.
-Jag söker en större lägenhet.
-Ingår elen i hyran?
-Tvättstugan är ledig efter klockan sex.
-Vi har bott här i två år.
-Jag arbetar hemifrån idag.
-När börjar mötet?
-Jag skickar rapporten före lunch.
-Hon har sökt ett nytt jobb.
-Vad tycker du om förslaget?
-Jag håller med dig.
-Jag håller inte riktigt med.
-Det beror på vädret.
-Om det inte regnar går vi ut.
-Jag tänker hälsa på mina föräldrar.
-Vi kanske stannar över natten.
-Vad ska du göra i helgen?
-Tack för inbjudan!
-Tyvärr kan jag inte komma.
-Vill du följa med på bio?
-Det var länge sedan!
-Tröjan är för liten.
-Kan jag byta den utan kvitto?
-Finns den i en annan färg?
-Jag tittar bara, tack.
-berätta
-bestämma
-bjuda
-byta
-förklara
-försöka
-glömma
-hända
-hinna
-hämta
-känna
-låna
-lämna
-minnas
-planera
-prova
-ringa
-sakna
-stanna
-träffa
-välja
-ändra
-Lägenhet
-Hyra
-Granne
-Balkong
-Tvättstuga
-Möbel
-Kollega
-Chef
-Möte
-Lön
-Ansökan
-Erfarenhet
-Vårdcentral
-Recept
-Feber
-Huvudvärk
-Förkylning
-Apotek
-Försening
-Hållplats
-Perrong
-Tidtabell
-Enkelbiljett
-Tur och retur
-Molnig
-Regnig
-Blåsigt
-Prognos
-Temperatur
-Årstid
-Inbjudan
-Födelsedag
-Present
-Samtal
-Överens
-Orolig
-Förvånad
-Besviken
-Stolt
-Nervös
-Möjlighet
-Skillnad
-Anledning
-Förslag
-Beslut
-Vanligtvis
-Plötsligt
-Fortfarande
+Se avessi saputo la verità, non avrei mai accettato.
+Pensavo che tu fossi già partito.
+Se avessimo più tempo, potremmo finire il progetto.
+Speravo che mi avessero invitato.
+Maria disse che sarebbe arrivata il giorno dopo.
+Il decreto va firmato dal ministro entro domani.
+In Italia si mangiano molti tipi di pasta.
+Te lo dico subito: gliel'ho già spedito.
+Mi sono fatto controllare la pressione dal medico.
+Me la sono cavata egregiamente all'esame orale.
+Sebbene fosse stanco, ha continuato a lavorare; di conseguenza, ha terminato il progetto in tempo.
+Pur essendo arrivato in ritardo, è riuscito a partecipare al dibattito.
+Le lettere? Le ho già spedite tutte stamattina.
+Per quanto sia stanco, finirò il lavoro stasera.
+Ecco l'autore dei cui libri ti ho parlato.
+La mancata attuazione della riforma ha aggravato le disuguaglianze.
+La tutela dei dati personali richiede procedure chiare.
+Non possiamo prescindere dai vincoli economici esistenti.
+La decisione inciderà sulla qualità dei servizi pubblici.
+Si potrebbe sostenere che la misura sia efficace solo nel breve periodo.
+Non è da escludere che i dati siano stati interpretati in modo selettivo.
+Questa interpretazione, la trovo convincente solo in parte.
+Di soluzioni immediate, non ne vedo molte.
+È proprio la mancanza di controlli che ha favorito l'abuso.
+Ciò che preoccupa non è il dato in sé, ma la tendenza che rivela.
+La sostenibilità del progetto dipende dalla disponibilità di fondi stabili.
+L'illegittimità del provvedimento è stata rilevata dal tribunale.
+Nel rapporto sarebbe preferibile scrivere 'emerge una criticità' invece di 'c'è un problema'.
+La scelta del registro dipende dal destinatario e dallo scopo del testo.
+È un principio sul quale non si può derogare senza conseguenze.
+Si tratta di un'ipotesi secondo la quale il calo sarebbe temporaneo.
+Dopo aver esaminato i dati, la commissione ha rinviato la decisione.
+Una volta chiariti i criteri, sarà possibile valutare le domande.
+Il documento sarà già stato trasmesso agli uffici competenti.
+Secondo la stampa, l'accordo sarebbe stato raggiunto nella notte.
+A dire il vero, il risultato era prevedibile già da tempo.
+Quanto meno, la proposta ha il merito di riaprire il dibattito.
+Il fenomeno non è nuovo. La sua intensità, tuttavia, impone una valutazione diversa.
+Questa considerazione porta a una conclusione più cauta.
+Per quanto possa sembrare paradossale, i dati confermano la tesi opposta.
+Vale la pena soffermarsi su un aspetto spesso trascurato.
+Sarebbe opportuno riconsiderare la questione alla luce dei nuovi dati.
+A prescindere dalle apparenze, la realtà è ben più complessa.
+Mi preme sottolineare l'urgenza di un intervento immediato.
+Si tratta di una questione di non poco conto.
+Mi corre l'obbligo di precisare alcuni dettagli.
+Ne discende che le conclusioni vanno riviste.
+A ben vedere, l'argomentazione si regge su premesse fragili.
+Per dirla in altri termini, la posta in gioco è altissima.
+Se la prendi così, non se ne viene a capo.
+Lungi dall'essere risolto, il problema si è ulteriormente aggravato.
+Mi sia consentito esprimere alcune perplessità in merito.
+Tutto sommato, i benefici superano gli svantaggi.
+Se non altro, l'esperienza ci ha insegnato la prudenza.
+Si tratta di un tema spinoso che richiede massima cautela.
+C'è poco da fare: la decisione è ormai irreversibile.
+Conviene affrontare il problema alla radice.
+Non è certo questa la sede per discuterne.
+Non si può fare di tutta l'erba un fascio.
+Sotto questo profilo, la riforma appare insufficiente.
+L'ho visto coi miei occhi, non si tratta di un'illazione.
+A conti fatti, la proposta non regge.
+Viene da chiedersi se sia davvero la strada giusta.
+Non è il caso di drammatizzare, ma la situazione è seria.
+Per certi versi, hanno ragione entrambi.
+Tutto lascia pensare che la decisione sia ormai presa.
+Non è da escludere che ci siano stati errori di valutazione.
+Va detto, per onestà, che non tutto è stato negativo.
+Non c'è da meravigliarsi se la situazione è degenerata.
+Faccio mia la sua osservazione.
+Mi permetto di dissentire su questo punto specifico.
+In definitiva, non c'è una soluzione facile.
+Per giunta, le risorse a disposizione sono limitate.
+D'altro canto, non possiamo ignorare le difficoltà oggettive.
+Resta da vedere se la riforma produrrà gli effetti sperati.
+Avevo messo le mani avanti proprio per evitare malintesi.
+Ha voce in capitolo solo chi conosce davvero la materia.
+Il discorso lascia molto a desiderare sotto il profilo logico.
+L'iniziativa stenta a decollare per la mancanza di fondi.
+Tutt'al più potremmo concordare un rinvio.
+Ad ogni buon conto, conviene tenersi pronti.
+L'argomento merita un approfondimento ulteriore.
+Non si direbbe, eppure i numeri parlano chiaro.
+Ne va della nostra reputazione.
+Pur con tutti i suoi limiti, l'accordo segna un passo avanti.
+Tanto vale parlarne apertamente.
+Detto fra noi, l'esito non era affatto scontato.
+Stando ai dati, la tendenza è destinata a invertirsi.
+Sento il dovere di ringraziare quanti hanno contribuito.
+Mi rivolgo a Lei in qualità di rappresentante dell'associazione.
+In attesa di un cortese riscontro, porgo distinti saluti.
+Ne consegue che ogni ulteriore ritardo sarà inaccettabile.
+Si direbbe quasi che il tempo si sia fermato.
+A quanto pare, nessuno aveva previsto questa svolta.
+Non si fa altro che parlarne.
+L'occasione è propizia per fare il punto della situazione.
+Stento a credere che le cose siano andate proprio così.
+C'è da scommettere che la notizia susciterà polemiche.
+Non se ne può più di queste continue interruzioni.
+Vale a dire che la responsabilità ricade su di noi.
+Vorrei attirare la vostra attenzione su un punto cruciale.
+Tutto fa pensare a una soluzione di compromesso.
+A onor del vero, va riconosciuto il loro impegno.
+Mi domando come si possa giungere a tale conclusione.
+Era come se il tempo non fosse mai passato.
+C'è chi sostiene il contrario, e non senza ragione.
+Sotto certi aspetti, l'idea merita di essere approfondita.
+Sembra inverosimile, ma è proprio così.
+Dovremmo guardare in faccia la realtà.
+Mi sento di consigliarti la massima prudenza.
+Una buona volta, mettiamoci a sedere e parliamone.
+Tanto per cambiare, è arrivato in ritardo.
+Non c'è nulla di più sbagliato che generalizzare.
+Ci sarebbe da scrivere un trattato sull'argomento.
+Provvederò personalmente a verificare l'accaduto.
+L'avrei detto io stesso, se non mi avessi anticipato.
+Ai posteri l'ardua sentenza.
+Resto a disposizione per ogni eventuale chiarimento.
+Sapere è potere, ma non sempre basta.
+Alla luce di quanto esposto, la conclusione più prudente è la seguente.
+Non si può prescindere dal contesto in cui il fenomeno si manifesta.
+Il punto non è tanto stabilire chi abbia ragione, quanto chiarire i termini del problema.
+L'obiezione è fondata, ma non esaurisce la questione.
+A ben guardare, le due posizioni sono meno incompatibili di quanto sembri.
+Ne consegue una responsabilità che non può essere liquidata come marginale.
+Il ragionamento poggia su una premessa che andrebbe dimostrata, non data per scontata.
+Pur riconoscendo la validità dell'argomento, ne contesto le implicazioni pratiche.
+La questione va inquadrata in una prospettiva più ampia.
+Non è un dettaglio trascurabile, bensì il nodo centrale della discussione.
+Ritengo opportuno formulare alcune precisazioni preliminari.
+Con riferimento alla Sua richiesta, si comunica quanto segue.
+Si resta in attesa di un cortese e sollecito riscontro.
+La presente vale quale formale presa d'atto della situazione descritta.
+Qualora fossero necessari ulteriori chiarimenti, sarò lieto di fornirli.
+Si richiede la trasmissione della documentazione entro i termini previsti.
+La invito a voler considerare la questione con la dovuta attenzione.
+Prendo atto delle Sue osservazioni, pur non condividendone interamente le conclusioni.
+Ciò detto, resta aperto il problema dell'attuazione concreta.
+La distinzione è sottile, ma decisiva ai fini dell'analisi.
+Se ne ricava un quadro più sfumato di quanto non emerga a prima vista.
+Il nesso causale non è immediato e richiede ulteriori verifiche.
+Non basta individuare una correlazione per dimostrare un rapporto di causa ed effetto.
+Si tratta di un'ipotesi plausibile, ma ancora priva di riscontri solidi.
+Il dato va interpretato con cautela, soprattutto in assenza di serie storiche comparabili.
+È proprio qui che emergono le contraddizioni del modello proposto.
+La soluzione prospettata rischia di produrre effetti collaterali indesiderati.
+Il dibattito pubblico tende a semplificare una realtà molto più articolata.
+La misura appare condivisibile nei principi, ma problematica sul piano operativo.
+Il tema chiama in causa diritti individuali e interessi collettivi.
+Non si può scaricare sui singoli una responsabilità che è anche istituzionale.
+L'intervento pubblico dovrebbe limitarsi a correggere le disuguaglianze più evidenti.
+Il rischio è che l'emergenza diventi la giustificazione permanente di ogni scelta.
+La transizione ecologica non può ridursi a uno slogan privo di contenuto.
+La sostenibilità va valutata lungo l'intero ciclo di vita del prodotto.
+Il costo dell'inazione rischia di superare quello degli interventi preventivi.
+I benefici immediati non compensano necessariamente i danni di lungo periodo.
+La questione ambientale è inseparabile da quella sociale.
+L'innovazione tecnologica solleva interrogativi che non sono soltanto tecnici.
+La protezione dei dati non è un adempimento formale, ma una garanzia sostanziale.
+L'automazione non elimina la responsabilità umana nelle decisioni più delicate.
+L'algoritmo riproduce spesso i pregiudizi presenti nei dati di partenza.
+La narrazione mediatica ha finito per oscurare la complessità dei fatti.
+Prima di trarre conclusioni, occorre verificare l'attendibilità delle fonti.
+La notizia ha avuto ampia risonanza, ma scarsa contestualizzazione.
+Il linguaggio scelto orienta già l'interpretazione del lettore.
+Il testo alterna registro specialistico e tono divulgativo.
+La frase risulta grammaticalmente corretta, ma stilisticamente appesantita.
+La nominalizzazione rende il periodo più astratto e impersonale.
+La scelta del connettivo modifica la relazione logica tra le due proposizioni.
+A livello pragmatico, l'espressione attenua una critica piuttosto netta.
+Non mi pare il caso di farne una questione di principio.
+Capisco il tuo punto, ma temo che la realtà sia un po' più complicata.
+Mettiamola così: la proposta è interessante, ma va rivista da cima a fondo.
+Non vorrei sembrare polemico, però la questione non è stata affrontata.
+Mi sembra una scorciatoia più che una vera soluzione.
+È un ragionamento che fila, almeno sulla carta.
+Detta così, la cosa assume tutt'altro significato.
+Non regge alla prova dei fatti.
+È il classico cane che si morde la coda.
+Hanno fatto i conti senza l'oste.
+La toppa rischia di essere peggiore del buco.
+Non metterei la mano sul fuoco per questa ricostruzione.
+Si è aperto un vaso di Pandora difficile da richiudere.
+È una questione che merita di essere trattata con i guanti.
+Il romanzo restituisce con finezza le contraddizioni di un'intera epoca.
+L'opera dialoga con la tradizione senza limitarsi a imitarla.
+La ricezione critica è stata inizialmente tiepida, poi progressivamente più favorevole.
+Il passaggio è denso di allusioni che sfuggono a una lettura superficiale.
+La formazione continua non è più un'opzione, ma una necessità strutturale.
+Il titolo di studio conserva valore, ma non garantisce da solo l'inserimento professionale.
+Il mercato del lavoro premia competenze trasversali e capacità di adattamento.
+La precarietà non incide solo sul reddito, ma anche sui progetti di vita.
+La prevenzione richiede investimenti i cui risultati non sono sempre immediatamente visibili.
+Il consenso informato presuppone una comunicazione chiara e comprensibile.
+L'accesso alle cure resta uno degli indicatori più sensibili di disuguaglianza.
+Non tutto ciò che è tecnicamente possibile è automaticamente auspicabile.
+dimostrare
+conseguire
+comprendere
+sostenere
+ottenere
+affrontare
+risolvere
+esprimere
+ammettere
+distinguere
+promuovere
+attribuire
+giungere
+accadere
+rinunciare
+tollerare
+incidere
+trascurare
+rivolgersi
+svolgere
+perseguire
+concedere
+intervenire
+stabilire
+la sfumatura
+la testimonianza
+l'ambiguità
+la coesione
+l'imprenditoria
+la deroga
+la fattispecie
+lo sviluppo sostenibile
+la divulgazione
+il retaggio
+l'assunto
+la riservatezza
+il connubio
+la connivenza
+l'inquadramento
+il rincaro
+lo stallo
+il pendio
+la falda acquifera
+la bonifica
+la sovvenzione
+l'affluenza
+il varco
+il rovescio della medaglia
+l'esordio
+la stesura
+il flagello
+il fardello
+il malcontento
+il dispendio
+la stortura
+il riscatto
+il connettivo
+il provvedimento
+l'ambito
+la propensione
+la longevità
+la coercizione
+il declino
+il tessuto sociale
+la lungimiranza
+il diniego
+l'arroganza
+la disamina
+l'algoritmo
+la digitalizzazione
+l'intelligenza artificiale
+la cybersicurezza
+il richiedente asilo
+la diaspora
+lo sradicamento
+la dispersione scolastica
+il fact-checking
+la disinformazione
+il giornalismo investigativo
+il decorso
+il convivio
+la sagra
+la passerella
+la sartoria
+il fuoriclasse
+l'astensione
+la diatriba
+lo scetticismo
+il patrimonio culturale
+la riqualificazione
+la deontologia
+la giurisprudenza
+il sopruso
+la disparità
+il tracollo
+il barlume
+il tracciato
+lo slancio
+lo sgombero
+la scarica elettrica
+la siccità
+il dissesto
+il pignoramento
+la querela
+il sequestro
+la rincorsa
+lo svolgimento
+la cattedra
+il calo demografico
+l'agevolazione
+la stipula
+l'arringa
+la confutazione
+la disquisizione
+la postilla
+il tornaconto
+la sopraffazione
+il rastrellamento
+lo scellerato
+il prodigio
+lo zelo
+la sollecitudine
+la riluttanza
+l'esuberanza
+la pacatezza
+la transizione
+la concertazione
+la sussistenza
+il fabbisogno
+la suscettibilità
+il riguardo
+la crescita esponenziale
+il know-how
+il sopralluogo
+la maestria
+il manoscritto
+il critico letterario
+la coscienza civica
+la vetrina
+la lungaggine
+il sopruso amministrativo
+la deontologia professionale
+la divulgazione scientifica
+la diatesi
+l'avallo
+l'onere della prova
+la legittimità
+l'impugnazione
+la prescrizione
+la discrezionalità
+la trasparenza amministrativa
+l'adempimento
+l'inadempienza
+la tutela giurisdizionale
+il contenzioso
+la rendicontazione
+la sostenibilità finanziaria
+il gettito fiscale
+la leva finanziaria
+il divario salariale
+la contrattazione collettiva
+la precarietà lavorativa
+la produttività marginale
+il potere d'acquisto
+la congiuntura economica
+la spesa corrente
+il disavanzo
+la perequazione
+il consenso informato
+la polarizzazione
+la marginalizzazione
+il clientelismo
+la rappresentanza
+la cittadinanza attiva
+il welfare generativo
+la coesione territoriale
+la resilienza urbana
+il dissesto idrogeologico
+la rigenerazione urbana
+l'impatto antropico
+l'economia circolare
+la mitigazione climatica
+l'adattamento climatico
+la biodiversità
+l'erosione costiera
+la neutralità climatica
+la sovraesposizione mediatica
+la narrazione dominante
+la verifica delle fonti
+il bias algoritmico
+la bolla informativa
+l'autorevolezza
+la risonanza mediatica
+il registro linguistico
+la nominalizzazione
+la dislocazione a sinistra
+la sfumatura semantica
+l'enfasi retorica
+la perifrasi
+l'attenuazione
+l'iperbole
+l'allusione
+la reticenza
+la verosimiglianza
+la ricezione critica
+l'intertestualità
+la stratificazione sociale
+la memoria collettiva
+la secolarizzazione
+la mobilità sociale
+la deindustrializzazione
+la vulnerabilità
+la consapevolezza
+la distorsione cognitiva
+l'autodeterminazione
+la retorica del merito
+l'abbandono universitario
+la valutazione formativa
+l'apprendimento permanente
+la medicina preventiva
+la cronicità
+l'equità sanitaria
+la riservatezza dei dati
+l'interoperabilità
+la tracciabilità
+l'obsolescenza programmata
+l'automazione decisionale
+la sovranità digitale
+la frode
+l'elusione fiscale
+l'evasione fiscale
+il nesso causale
+la premessa implicita
+la confutabilità
+l'attendibilità
+la fondatezza
+la pertinenza
+l'incongruenza
+la plausibilità
+la constatazione
+la presa d'atto
+il nulla osta
+la diffida
+il sollecito
+la rettifica
+il riscontro
+la derubricazione
+la sproporzione
+il tornasole
+la capillarità
+la ricaduta
+il fabbisogno abitativo
+la densità abitativa
+l'invecchiamento demografico
+il sovraffollamento
+la microcriminalità
+la dispersione digitale
+la trasversalità
+l'approccio integrato
+la spendibilità
+la riconversione professionale
+la filiera produttiva
+la delocalizzazione
+la rendita di posizione

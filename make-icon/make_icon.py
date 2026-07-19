@@ -30,6 +30,9 @@ DEFAULT_FONT_CANDIDATES = [
     "/Library/Fonts/Arial.ttf",
 ]
 DARKEN_FACTOR = 0.55
+CSV_FIELDS = ("text", "x", "y", "font", "font_size", "color", "anchor", "weight", "angle")
+MIN_MAKE_CSV_FIELDS = 8
+DEFAULT_ICON_SIZE = 1024
 
 
 def load_font(path: str | None, size: int) -> ImageFont.FreeTypeFont:
@@ -82,6 +85,14 @@ def draw_text(
     draw.text((x, y), text, **kwargs)
 
 
+def text_angle(spec: dict) -> float:
+    """Return clockwise text rotation degrees for a text spec."""
+    raw = spec.get("angle", spec.get("degrees", 0))
+    if raw in ("", None):
+        return 0.0
+    return float(raw)
+
+
 def darken(base: Image.Image, factor: float = DARKEN_FACTOR) -> Image.Image:
     """Darken the image for the dark-mode icon variant."""
     alpha = base.split()[-1]
@@ -99,6 +110,15 @@ def grayscale(base: Image.Image) -> Image.Image:
     return out
 
 
+def normalize_icon_image(input_path: Path, canvas_size: int) -> Image.Image:
+    """Scale and center-crop the source image to the square icon canvas."""
+    img = Image.open(input_path).convert("RGBA")
+    target_size = (canvas_size, canvas_size)
+    if img.size == target_size:
+        return img
+    return ImageOps.fit(img, target_size, method=Image.Resampling.LANCZOS, centering=(0.5, 0.5))
+
+
 def render_text_overlay(
     size: tuple[int, int],
     specs: list[dict],
@@ -109,7 +129,20 @@ def render_text_overlay(
     overlay = Image.new("RGBA", size, (0, 0, 0, 0))
     draw = ImageDraw.Draw(overlay)
     for spec in specs:
-        draw_text(draw, spec, default_color, default_weight, color_transform)
+        angle = text_angle(spec)
+        if angle:
+            text_layer = Image.new("RGBA", size, (0, 0, 0, 0))
+            text_draw = ImageDraw.Draw(text_layer)
+            draw_text(text_draw, spec, default_color, default_weight, color_transform)
+            rotated = text_layer.rotate(
+                -angle,
+                resample=Image.Resampling.BICUBIC,
+                center=(int(spec.get("x", 0)), int(spec.get("y", 0))),
+            )
+            overlay = Image.alpha_composite(overlay, rotated)
+            draw = ImageDraw.Draw(overlay)
+        else:
+            draw_text(draw, spec, default_color, default_weight, color_transform)
     return overlay
 
 
@@ -120,9 +153,7 @@ def render_variants(
     default_color: str,
     default_weight: int,
 ) -> dict[str, Image.Image]:
-    img = Image.open(input_path).convert("RGBA")
-    if img.size != (canvas_size, canvas_size):
-        img = img.resize((canvas_size, canvas_size), Image.LANCZOS)
+    img = normalize_icon_image(input_path, canvas_size)
     overlay = render_text_overlay(img.size, specs, default_color, default_weight)
     dark_overlay = render_text_overlay(
         img.size,
@@ -202,16 +233,36 @@ def collect_specs(args: argparse.Namespace) -> list[dict]:
         else:
             specs.append(parsed)
     for raw in args.csv or []:
-        values = next(csv.reader([raw], skipinitialspace=True))
-        fields = ("text", "x", "y", "font", "font_size", "color", "anchor", "weight")
-        if len(values) > len(fields):
-            raise ValueError(
-                f"CSV text spec has {len(values)} fields; expected at most {len(fields)}: {raw}"
-            )
-        spec = {field: value for field, value in zip(fields, values) if value != ""}
-        if not spec.get("text"):
-            raise ValueError(f"CSV text spec must start with text: {raw}")
-        specs.append(spec)
+        specs.append(parse_csv_spec(raw))
+    if args.csv_goals:
+        specs.extend(parse_csv_goal_specs(args.csv_goals))
+    return specs
+
+
+def parse_csv_spec(raw: str) -> dict:
+    values = next(csv.reader([raw], skipinitialspace=True))
+    if len(values) > len(CSV_FIELDS):
+        raise ValueError(
+            f"CSV text spec has {len(values)} fields; expected at most {len(CSV_FIELDS)}: {raw}"
+        )
+    spec = {field: value for field, value in zip(CSV_FIELDS, values) if value != ""}
+    if not spec.get("text"):
+        raise ValueError(f"CSV text spec must start with text: {raw}")
+    return spec
+
+
+def parse_csv_goal_specs(raw: str) -> list[dict]:
+    """Rebuild CSV specs after make splits goals that contain spaces."""
+    specs: list[dict] = []
+    parts: list[str] = []
+    for token in raw.split():
+        parts.append(token)
+        candidate = " ".join(parts)
+        if len(next(csv.reader([candidate], skipinitialspace=True))) >= MIN_MAKE_CSV_FIELDS:
+            specs.append(parse_csv_spec(candidate))
+            parts = []
+    if parts:
+        specs.append(parse_csv_spec(" ".join(parts)))
     return specs
 
 
@@ -225,7 +276,12 @@ def main() -> int:
         help="Path to the .xcassets directory.",
     )
     parser.add_argument("--icon-set", default="AppIcon", help="Iconset name (without .appiconset).")
-    parser.add_argument("--size", type=int, default=1024, help="Output square size in pixels.")
+    parser.add_argument(
+        "--size",
+        type=int,
+        default=DEFAULT_ICON_SIZE,
+        help="Output square size in pixels.",
+    )
     parser.add_argument(
         "--color",
         default="white",
@@ -245,7 +301,11 @@ def main() -> int:
     parser.add_argument(
         "--csv",
         action="append",
-        help="Comma-separated text,x,y,font,font_size,color,anchor,weight spec. Repeatable.",
+        help="Comma-separated text,x,y,font,font_size,color,anchor,weight,angle spec. Repeatable.",
+    )
+    parser.add_argument(
+        "--csv-goals",
+        help="Raw Makefile goal text containing one or more comma-separated specs.",
     )
     parser.add_argument("--config", type=Path, help="JSON file with a list of text specs.")
     args = parser.parse_args()
@@ -255,9 +315,6 @@ def main() -> int:
         return 1
 
     specs = collect_specs(args)
-    if not specs:
-        print("No text specs provided; use --text, --csv, or --config.", file=sys.stderr)
-        return 1
 
     variants = render_variants(args.input, specs, args.size, args.color, args.weight)
     out_dir = write_icons(variants, args.assets, args.icon_set, fallback_dir=Path.cwd())

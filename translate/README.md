@@ -22,7 +22,7 @@ make start ../../french-b2/french-b2 fr
 ```
 
 The first argument is the folder that contains the JSON files. The second
-argument is the source language code, such as `fr`, `es`, `it`, `de`, or `en`.
+argument is the source language code, such as `fr`, `es`, `it`, `de`, `sq`, or `en`.
 
 When the requested source locale already exists in a localization map, that
 authored value is used as the translation source. For example, this uses the

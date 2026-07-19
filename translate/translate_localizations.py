@@ -29,6 +29,7 @@ from typing import Any, Callable
 APP_LOCALES = [
     "en", "zh-Hans", "hi", "es", "ar", "fr", "fi", "bn", "pt", "ru", "ur", "id", "de",
     "ja", "sw", "mr", "te", "tr", "ta", "yue-Hant", "vi", "sh", "hu", "pl", "bg",
+    "sq",
 ]
 
 DEFAULT_FILENAMES = [

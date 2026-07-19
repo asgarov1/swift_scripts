@@ -49,6 +49,7 @@ APP_LANGUAGES = [
     ("hungarian", "hu"),
     ("polish", "pl"),
     ("bulgarian", "bg"),
+    ("albanian", "sq"),
 ]
 
 LOCALIZATION_FIELDS = [
