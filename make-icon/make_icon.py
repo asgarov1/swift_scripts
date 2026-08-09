@@ -6,8 +6,9 @@ Example:
         --input spanish-a1/Flag-Spain_1024.jpeg \
         --icon-set AppIcon \
         --color white \
+        --opacity 0.8 \
         --text '{"text":"A1","x":512,"y":820,"font":"/path/to/font.ttf","font_size":260,"anchor":"mm"}' \
-        --text '{"text":"ES","x":512,"y":260,"font":"/path/to/another-font.otf","font_size":200,"color":"#FFCC00"}'
+        --text '{"text":"ES","x":512,"y":260,"font":"/path/to/another-font.otf","font_size":200,"color":"#FFCC00","opacity":0.5}'
 
 Or with a JSON file containing a list of the same objects:
     python3 scripts/make_icon.py -i flag.jpg --config icon_text.json
@@ -18,6 +19,7 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import math
 import sys
 from collections.abc import Callable
 from pathlib import Path
@@ -30,7 +32,18 @@ DEFAULT_FONT_CANDIDATES = [
     "/Library/Fonts/Arial.ttf",
 ]
 DARKEN_FACTOR = 0.55
-CSV_FIELDS = ("text", "x", "y", "font", "font_size", "color", "anchor", "weight", "angle")
+CSV_FIELDS = (
+    "text",
+    "x",
+    "y",
+    "font",
+    "font_size",
+    "color",
+    "anchor",
+    "weight",
+    "angle",
+    "opacity",
+)
 MIN_MAKE_CSV_FIELDS = 8
 DEFAULT_ICON_SIZE = 1024
 
@@ -58,11 +71,33 @@ def adjust_color_brightness(color: str | tuple | list, factor: float) -> tuple[i
     return (int(red * factor), int(green * factor), int(blue * factor), alpha)
 
 
+def parse_opacity(value: object) -> float:
+    """Return an opacity multiplier in the inclusive range 0.0 to 1.0."""
+    try:
+        opacity = float(value)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"Opacity must be a number from 0.0 to 1.0, got {value!r}") from exc
+    if not math.isfinite(opacity) or not 0.0 <= opacity <= 1.0:
+        raise ValueError(f"Opacity must be from 0.0 to 1.0, got {value!r}")
+    return opacity
+
+
+def apply_opacity(color: str | tuple | list, opacity: float) -> tuple[int, int, int, int]:
+    """Apply opacity while preserving any alpha already present in the color."""
+    if isinstance(color, (tuple, list)):
+        red, green, blue, *alpha = color
+        color_alpha = int(alpha[0]) if alpha else 255
+    else:
+        red, green, blue, color_alpha = ImageColor.getcolor(color, "RGBA")
+    return (int(red), int(green), int(blue), round(color_alpha * opacity))
+
+
 def draw_text(
     draw: ImageDraw.ImageDraw,
     spec: dict,
     default_color: str,
     default_weight: int,
+    default_opacity: float,
     color_transform: Callable[[str | tuple | list], str | tuple | list] | None = None,
 ) -> None:
     text = spec["text"]
@@ -72,6 +107,8 @@ def draw_text(
     fill = spec.get("color", default_color)
     if color_transform:
         fill = color_transform(fill)
+    opacity = parse_opacity(spec.get("opacity", default_opacity))
+    fill = apply_opacity(fill, opacity)
     # "weight" thickens the glyph in its own fill color. "stroke_width" is a
     # legacy alias. If "stroke_color" is set, it's treated as a real outline.
     weight = int(spec.get("weight", spec.get("stroke_width", default_weight)))
@@ -81,6 +118,8 @@ def draw_text(
         stroke_fill = spec.get("stroke_color", fill)
         if color_transform and "stroke_color" in spec:
             stroke_fill = color_transform(stroke_fill)
+        if "stroke_color" in spec:
+            stroke_fill = apply_opacity(stroke_fill, opacity)
         kwargs["stroke_fill"] = stroke_fill
     draw.text((x, y), text, **kwargs)
 
@@ -124,6 +163,7 @@ def render_text_overlay(
     specs: list[dict],
     default_color: str,
     default_weight: int,
+    default_opacity: float,
     color_transform: Callable[[str | tuple | list], str | tuple | list] | None = None,
 ) -> Image.Image:
     overlay = Image.new("RGBA", size, (0, 0, 0, 0))
@@ -133,7 +173,7 @@ def render_text_overlay(
         if angle:
             text_layer = Image.new("RGBA", size, (0, 0, 0, 0))
             text_draw = ImageDraw.Draw(text_layer)
-            draw_text(text_draw, spec, default_color, default_weight, color_transform)
+            draw_text(text_draw, spec, default_color, default_weight, default_opacity, color_transform)
             rotated = text_layer.rotate(
                 -angle,
                 resample=Image.Resampling.BICUBIC,
@@ -142,7 +182,7 @@ def render_text_overlay(
             overlay = Image.alpha_composite(overlay, rotated)
             draw = ImageDraw.Draw(overlay)
         else:
-            draw_text(draw, spec, default_color, default_weight, color_transform)
+            draw_text(draw, spec, default_color, default_weight, default_opacity, color_transform)
     return overlay
 
 
@@ -152,14 +192,16 @@ def render_variants(
     canvas_size: int,
     default_color: str,
     default_weight: int,
+    default_opacity: float,
 ) -> dict[str, Image.Image]:
     img = normalize_icon_image(input_path, canvas_size)
-    overlay = render_text_overlay(img.size, specs, default_color, default_weight)
+    overlay = render_text_overlay(img.size, specs, default_color, default_weight, default_opacity)
     dark_overlay = render_text_overlay(
         img.size,
         specs,
         default_color,
         default_weight,
+        default_opacity,
         lambda color: adjust_color_brightness(color, DARKEN_FACTOR),
     )
     return {
@@ -294,6 +336,12 @@ def main() -> int:
         help="Default glyph thickness in pixels (0 = regular). Per-text 'weight' in a spec overrides.",
     )
     parser.add_argument(
+        "--opacity",
+        type=parse_opacity,
+        default=1.0,
+        help="Default text opacity from 0.0 to 1.0. Per-text 'opacity' in a spec overrides.",
+    )
+    parser.add_argument(
         "--text",
         action="append",
         help='Inline text spec as JSON object, or a JSON array of specs. Repeatable.',
@@ -301,7 +349,7 @@ def main() -> int:
     parser.add_argument(
         "--csv",
         action="append",
-        help="Comma-separated text,x,y,font,font_size,color,anchor,weight,angle spec. Repeatable.",
+        help="Comma-separated text,x,y,font,font_size,color,anchor,weight,angle,opacity spec. Repeatable.",
     )
     parser.add_argument(
         "--csv-goals",
@@ -316,7 +364,9 @@ def main() -> int:
 
     specs = collect_specs(args)
 
-    variants = render_variants(args.input, specs, args.size, args.color, args.weight)
+    variants = render_variants(
+        args.input, specs, args.size, args.color, args.weight, args.opacity
+    )
     out_dir = write_icons(variants, args.assets, args.icon_set, fallback_dir=Path.cwd())
     if args.assets.is_dir():
         print(f"Wrote iconset: {out_dir}")
