@@ -2,6 +2,7 @@
 ```
 python3 collect_foreign.py ../../german_a1/german_a1
 python3 generate_audio_clips.py --lang de
+python3 generate_audio_clips.py --lang pt
 python3 generate_audio_clips.py --lang sv
 ```
 
@@ -40,8 +41,9 @@ make start <path_to_folder> <language> [output_dir]
 Examples:
 ```
 make start ../../german_a1/german_a1 de
+make start ../../portuguese-a1/portuguese-a1 pt ../portuguese_audio
 make start ../../swedish_a1/swedish_a1 sv ../swedish_audio
 ./do.sh ../../swedish_a1/swedish_a1 sv ../swedish_audio
 ```
 
-Supported languages: de, es, fr, it, sv.
+Supported languages: de, es, fr, it, pt, sv.

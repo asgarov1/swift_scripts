@@ -5,6 +5,7 @@ Fill Jlingo JSON localization maps for all supported app languages.
 Examples:
   python3 scripts/generated/translate_localizations.py --source-lang fr french-b2/french-b2
   python3 scripts/generated/translate_localizations.py --source-lang es spanish-b1/spanish-b1 --overwrite
+  python3 scripts/generated/translate_localizations.py --source-lang pt portuguese-a1/portuguese-a1
   python3 scripts/generated/translate_localizations.py --source-lang fr french-b2/french-b2 --dry-run
 
 The script understands the app data files:
@@ -440,7 +441,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--source-lang",
         required=True,
-        help="Source app locale / Google language code, e.g. fr, es, it, de, en.",
+        help="Source app locale / Google language code, e.g. fr, es, it, pt, de, en.",
     )
     parser.add_argument(
         "--fallback-locale",

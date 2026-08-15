@@ -5,6 +5,7 @@ Translate an English word or phrase into all supported AppLanguage localizations
 Examples:
   python3 translate_phrase.py "good morning"
   python3 translate_phrase.py --source-lang en "good morning"
+  python3 translate_phrase.py --target-lang portuguese "good morning"
 """
 
 from __future__ import annotations
@@ -77,7 +78,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "-t",
         "--target-lang",
-        help="Translate only to this AppLanguage case or raw value, e.g. italian or it.",
+        help=(
+            "Translate only to this AppLanguage case or raw value, "
+            "e.g. portuguese or pt."
+        ),
     )
     parser.add_argument(
         "--cache",
