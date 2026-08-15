@@ -3,7 +3,7 @@
 make start ../../Swedish/swedish-a2/swedish-a2 en
 ```
 
-# Translate AppConfig
+# Translate AppConfig (can NOT be done at the same time as the previous command - have to execute one at a time)
 ```
 make translate-appconfig ../../Swedish/swedish-a2/swedish-a2 english
 ```
