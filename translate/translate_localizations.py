@@ -28,7 +28,7 @@ from typing import Any, Callable
 
 
 APP_LOCALES = [
-    "en", "zh-Hans", "hi", "es", "ar", "fr", "fi", "bn", "pt", "ru", "ur", "id", "de",
+    "en", "zh-Hans", "hi", "es", "it", "ar", "fr", "fi", "bn", "pt", "ru", "ur", "id", "de",
     "ja", "sw", "mr", "te", "tr", "ta", "yue-Hant", "vi", "sh", "hu", "pl", "bg",
     "sq",
 ]
@@ -152,20 +152,22 @@ def request_translation(
     source = google_code(source_lang)
     target = google_code(target_locale)
     params = urllib.parse.urlencode({
-        "client": "gtx",
+        "client": "dict-chrome-ex",
         "sl": source,
         "tl": target,
-        "dt": "t",
         "q": text,
     })
-    url = f"https://translate.googleapis.com/translate_a/single?{params}"
+    url = f"https://clients5.google.com/translate_a/t?{params}"
     last_error: Exception | None = None
 
     for attempt in range(retries):
         try:
             with urllib.request.urlopen(url, timeout=25) as response:
                 payload = json.loads(response.read().decode("utf-8"))
-            translated = "".join(part[0] for part in payload[0] if part and part[0]).strip()
+            if isinstance(payload, list) and payload and isinstance(payload[0], str):
+                translated = payload[0].strip()
+            else:
+                translated = "".join(part[0] for part in payload[0] if part and part[0]).strip()
             if not translated:
                 raise TranslationError(f"empty translation for {text!r} -> {target_locale}")
             time.sleep(0.06)
