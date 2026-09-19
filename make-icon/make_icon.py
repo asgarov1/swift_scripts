@@ -24,7 +24,7 @@ import sys
 from collections.abc import Callable
 from pathlib import Path
 
-from PIL import Image, ImageColor, ImageDraw, ImageEnhance, ImageFont, ImageOps
+from PIL import Image, ImageColor, ImageDraw, ImageEnhance, ImageFilter, ImageFont, ImageOps
 
 DEFAULT_FONT_CANDIDATES = [
     "/System/Library/Fonts/Helvetica.ttc",
@@ -158,6 +158,32 @@ def normalize_icon_image(input_path: Path, canvas_size: int) -> Image.Image:
     return ImageOps.fit(img, target_size, method=Image.Resampling.LANCZOS, centering=(0.5, 0.5))
 
 
+def has_shadow(spec: dict) -> bool:
+    return any(key in spec for key in ("shadow", "shadow_color", "shadow_blur", "shadow_dx", "shadow_dy"))
+
+
+def draw_shadow_text(
+    draw: ImageDraw.ImageDraw,
+    spec: dict,
+    default_weight: int,
+    color_transform: Callable[[str | tuple | list], str | tuple | list] | None = None,
+) -> None:
+    shadow_color = spec.get("shadow_color", "black")
+    if color_transform:
+        shadow_color = color_transform(shadow_color)
+    shadow_opacity = parse_opacity(spec.get("shadow_opacity", 0.35))
+    fill = apply_opacity(shadow_color, shadow_opacity)
+    x = int(spec.get("x", 0)) + int(spec.get("shadow_dx", 0))
+    y = int(spec.get("y", 0)) + int(spec.get("shadow_dy", 10))
+    font = load_font(spec.get("font"), int(spec.get("font_size", 72)))
+    kwargs = dict(font=font, fill=fill, anchor=spec.get("anchor", "la"))
+    weight = int(spec.get("weight", spec.get("stroke_width", 0)))
+    if weight > 0:
+        kwargs["stroke_width"] = weight
+        kwargs["stroke_fill"] = fill
+    draw.text((x, y), spec["text"], **kwargs)
+
+
 def render_text_overlay(
     size: tuple[int, int],
     specs: list[dict],
@@ -167,22 +193,24 @@ def render_text_overlay(
     color_transform: Callable[[str | tuple | list], str | tuple | list] | None = None,
 ) -> Image.Image:
     overlay = Image.new("RGBA", size, (0, 0, 0, 0))
-    draw = ImageDraw.Draw(overlay)
     for spec in specs:
+        item = Image.new("RGBA", size, (0, 0, 0, 0))
+        if has_shadow(spec):
+            shadow_layer = Image.new("RGBA", size, (0, 0, 0, 0))
+            draw_shadow_text(ImageDraw.Draw(shadow_layer), spec, default_weight, color_transform)
+            blur = float(spec.get("shadow_blur", 12))
+            if blur > 0:
+                shadow_layer = shadow_layer.filter(ImageFilter.GaussianBlur(blur))
+            item = Image.alpha_composite(item, shadow_layer)
+        draw_text(ImageDraw.Draw(item), spec, default_color, default_weight, default_opacity, color_transform)
         angle = text_angle(spec)
         if angle:
-            text_layer = Image.new("RGBA", size, (0, 0, 0, 0))
-            text_draw = ImageDraw.Draw(text_layer)
-            draw_text(text_draw, spec, default_color, default_weight, default_opacity, color_transform)
-            rotated = text_layer.rotate(
+            item = item.rotate(
                 -angle,
                 resample=Image.Resampling.BICUBIC,
                 center=(int(spec.get("x", 0)), int(spec.get("y", 0))),
             )
-            overlay = Image.alpha_composite(overlay, rotated)
-            draw = ImageDraw.Draw(overlay)
-        else:
-            draw_text(draw, spec, default_color, default_weight, default_opacity, color_transform)
+        overlay = Image.alpha_composite(overlay, item)
     return overlay
 
 
