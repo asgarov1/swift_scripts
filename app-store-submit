@@ -1,0 +1,127 @@
+#!/usr/bin/env bash
+# Submit any Xcode iOS app to App Store Connect from the command line.
+set -euo pipefail
+
+TOOLS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+usage() {
+  cat <<'EOF'
+Usage: app-store-submit <app-project-path> [--init] [--create-app] [--release] [--no-tests] [--dry-run]
+
+The app project needs .app-store-submit.env (copy it from this script's
+app-store-submit.env.example). Store metadata belongs at store-metadata/en-US
+by default; screenshots and previews default to screenshots/{iphone,ipad} and
+previews. No App Store credentials are kept in the project or this script.
+EOF
+}
+
+[[ $# -ge 1 ]] || { usage >&2; exit 2; }
+PROJECT_DIR="$(cd "$1" 2>/dev/null && pwd)" || { printf 'Project directory not found: %s\n' "$1" >&2; exit 2; }
+shift
+
+init=0
+create_app=0
+release=0
+dry_run=0
+no_tests=0
+for argument in "$@"; do
+  case "$argument" in
+    --init) init=1 ;;
+    --create-app) create_app=1 ;;
+    --release) release=1 ;;
+    --no-tests) no_tests=1 ;;
+    --dry-run) dry_run=1 ;;
+    --help|-h) usage; exit 0 ;;
+    *) printf 'Unknown argument: %s\n' "$argument" >&2; exit 2 ;;
+  esac
+done
+
+CONFIG_FILE="$PROJECT_DIR/.app-store-submit.env"
+if [[ "$init" == "1" ]]; then
+  example_file="$PROJECT_DIR/.app-store-submit.env.example"
+  [[ ! -e "$example_file" ]] || { printf 'Already exists: %s\n' "$example_file" >&2; exit 1; }
+  cp "$TOOLS_DIR/app-store-submit.env.example" "$example_file"
+  mkdir -p "$PROJECT_DIR/store-metadata/en-US"
+  printf 'Created %s and %s/store-metadata/en-US. Fill in the configuration and metadata, then run this command again.\n' "$example_file" "$PROJECT_DIR"
+  exit 0
+fi
+
+[[ -f "$CONFIG_FILE" ]] || { printf 'Missing %s. Run: %s %q --init\n' "$CONFIG_FILE" "$0" "$PROJECT_DIR" >&2; exit 1; }
+cd "$PROJECT_DIR"
+set -a
+# shellcheck disable=SC1090
+source "$CONFIG_FILE"
+set +a
+
+relative_path() {
+  case "$1" in
+    /*) printf '%s\n' "$1" ;;
+    *) printf '%s/%s\n' "$PROJECT_DIR" "$1" ;;
+  esac
+}
+
+required=(APP_IDENTIFIER APP_NAME APP_SKU SCHEME XCODEPROJ ASC_KEY_ID ASC_ISSUER_ID ASC_KEY_FILE REVIEW_CONTACT_FIRST_NAME REVIEW_CONTACT_LAST_NAME REVIEW_CONTACT_PHONE REVIEW_CONTACT_EMAIL)
+for variable in "${required[@]}"; do
+  [[ -n "${!variable:-}" ]] || { printf 'Missing %s in %s\n' "$variable" "$CONFIG_FILE" >&2; exit 1; }
+done
+METADATA_PATH="$(relative_path "${METADATA_PATH:-store-metadata}")"
+PREVIEW_PATH="$(relative_path "${PREVIEW_PATH:-previews}")"
+ASC_KEY_FILE="$(relative_path "$ASC_KEY_FILE")"
+export METADATA_PATH ASC_KEY_FILE
+[[ -d "$XCODEPROJ" ]] || { printf 'Xcode project not found: %s\n' "$XCODEPROJ" >&2; exit 1; }
+[[ -f "$ASC_KEY_FILE" ]] || { printf 'API key not found: %s\n' "$ASC_KEY_FILE" >&2; exit 1; }
+[[ -d "$METADATA_PATH/en-US" ]] || { printf 'Metadata directory not found: %s/en-US\n' "$METADATA_PATH" >&2; exit 1; }
+
+ASSET_DIR="$(mktemp -d "${TMPDIR:-/tmp}/app-store-assets.XXXXXX")"
+FASTFILE_DIR="$(mktemp -d "${TMPDIR:-/tmp}/app-store-fastlane.XXXXXX")"
+cleanup() { rm -rf "$ASSET_DIR" "$FASTFILE_DIR"; }
+trap cleanup EXIT
+mkdir -p "$ASSET_DIR/en-US"
+
+for source_dir in ${SCREENSHOT_PATHS:-screenshots/iphone screenshots/ipad}; do
+  source_dir="$(relative_path "$source_dir")"
+  [[ -d "$source_dir" ]] || continue
+  for screenshot in "$source_dir"/*.png "$source_dir"/*.jpg "$source_dir"/*.jpeg; do
+    [[ -f "$screenshot" ]] || continue
+    cp "$screenshot" "$ASSET_DIR/en-US/$(basename "$(dirname "$screenshot")")-$(basename "$screenshot")"
+  done
+done
+for preview in "$PREVIEW_PATH"/*.mp4; do
+  [[ -f "$preview" ]] || continue
+  cp "$preview" "$ASSET_DIR/en-US/$(basename "$preview" .mp4)-preview.mp4"
+done
+compgen -G "$ASSET_DIR/en-US/*.png" >/dev/null || { printf 'No screenshots found. Check SCREENSHOT_PATHS.\n' >&2; exit 1; }
+export SCREENSHOTS_PATH="$ASSET_DIR"
+export AUTOMATIC_RELEASE="$release"
+[[ "$no_tests" == "1" ]] && export RUN_TESTS=0
+
+if [[ "$dry_run" == "1" ]]; then
+  printf 'Validated %s and staged assets. No Apple service was contacted.\n' "$PROJECT_DIR"
+  exit 0
+fi
+
+cat > "$FASTFILE_DIR/Fastfile" <<'RUBY'
+default_platform(:ios)
+
+platform :ios do
+  lane :create_app do
+    UI.user_error!("APPLE_ID is required for --create-app") if ENV["APPLE_ID"].to_s.empty?
+    UI.user_error!("FASTLANE_SESSION is required for --create-app") if ENV["FASTLANE_SESSION"].to_s.empty?
+    produce(app_identifier: ENV.fetch("APP_IDENTIFIER"), app_name: ENV.fetch("APP_NAME"), sku: ENV.fetch("APP_SKU"), platform: "ios", language: ENV.fetch("ASC_PRIMARY_LANGUAGE", "English"), app_version: get_version_number(xcodeproj: ENV.fetch("XCODEPROJ"), target: ENV.fetch("SCHEME")), skip_itc: false)
+  end
+
+  lane :submit do
+    api_key = app_store_connect_api_key(key_id: ENV.fetch("ASC_KEY_ID"), issuer_id: ENV.fetch("ASC_ISSUER_ID"), key_filepath: ENV.fetch("ASC_KEY_FILE"), duration: 1_200)
+    run_tests(project: ENV.fetch("XCODEPROJ"), scheme: ENV.fetch("SCHEME"), device: ENV.fetch("TEST_DEVICE", "iPhone 17 Pro Max"), clean: true) if ENV.fetch("RUN_TESTS", "1") == "1"
+    increment_build_number(xcodeproj: ENV.fetch("XCODEPROJ")) unless ENV.fetch("SKIP_BUILD_NUMBER_BUMP", "0") == "1"
+    build_app(project: ENV.fetch("XCODEPROJ"), scheme: ENV.fetch("SCHEME"), clean: true, export_method: "app-store", xcargs: "-allowProvisioningUpdates")
+    upload_to_app_store(api_key: api_key, app_identifier: ENV.fetch("APP_IDENTIFIER"), metadata_path: ENV.fetch("METADATA_PATH"), screenshots_path: ENV.fetch("SCREENSHOTS_PATH"), primary_category: "Education", app_review_information: { first_name: ENV.fetch("REVIEW_CONTACT_FIRST_NAME"), last_name: ENV.fetch("REVIEW_CONTACT_LAST_NAME"), phone_number: ENV.fetch("REVIEW_CONTACT_PHONE"), email_address: ENV.fetch("REVIEW_CONTACT_EMAIL"), notes: ENV.fetch("REVIEW_NOTES", "No sign-in is required to use the app.") }, submit_for_review: true, automatic_release: ENV.fetch("AUTOMATIC_RELEASE", "0") == "1", force: true, run_precheck_before_submit: true, precheck_include_in_app_purchases: false, reject_if_possible: true)
+  end
+end
+RUBY
+
+BUNDLE_GEMFILE="$TOOLS_DIR/Gemfile" bundle check >/dev/null 2>&1 || BUNDLE_GEMFILE="$TOOLS_DIR/Gemfile" bundle install --path "$TOOLS_DIR/vendor/bundle"
+if [[ "$create_app" == "1" ]]; then
+  BUNDLE_GEMFILE="$TOOLS_DIR/Gemfile" bundle exec fastlane --fastfile "$FASTFILE_DIR/Fastfile" ios create_app
+fi
+BUNDLE_GEMFILE="$TOOLS_DIR/Gemfile" bundle exec fastlane --fastfile "$FASTFILE_DIR/Fastfile" ios submit
