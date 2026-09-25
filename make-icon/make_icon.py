@@ -24,7 +24,7 @@ import sys
 from collections.abc import Callable
 from pathlib import Path
 
-from PIL import Image, ImageColor, ImageDraw, ImageEnhance, ImageFilter, ImageFont, ImageOps
+from PIL import Image, ImageCms, ImageColor, ImageDraw, ImageEnhance, ImageFilter, ImageFont, ImageOps
 
 DEFAULT_FONT_CANDIDATES = [
     "/System/Library/Fonts/Helvetica.ttc",
@@ -284,8 +284,16 @@ def write_icons(
         out_dir = fallback_dir
         out_dir.mkdir(parents=True, exist_ok=True)
 
+    # App Store validation expects icon images to carry valid colour metadata.
+    # Pillow otherwise writes profile-less PNGs, which makes the eventual asset
+    # catalog depend on compiler defaults rather than an explicit sRGB profile.
+    srgb_profile = ImageCms.ImageCmsProfile(ImageCms.createProfile("sRGB")).tobytes()
     for key in ("light", "dark", "tinted"):
-        variants[key].convert("RGB").save(out_dir / filenames[key], format="PNG")
+        variants[key].convert("RGB").save(
+            out_dir / filenames[key],
+            format="PNG",
+            icc_profile=srgb_profile,
+        )
     return out_dir
 
 
