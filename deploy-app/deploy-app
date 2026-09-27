@@ -14,11 +14,10 @@ Usage: deploy-app <app-project-path> [--configure] [--init] [--dry-run] [--relea
 
 The bundled app-store-submit helper archives, uploads, and submits the app.
 
-On the first run, a missing .deploy-app.env is created interactively. The
-script offers inferred defaults where possible and asks for the remaining
-truthful App Store Connect, legal, review, and metadata values. --init remains
-available to create only the example file. Use --configure to review or change
-saved answers. The command creates the
+On the first run, a missing .deploy-app.env is created by showing the resolved
+defaults and asking whether to continue or edit. Choosing Edit walks through
+each value; --configure also opens that detailed editing flow. --init remains
+available to create only the example file. The command creates the
 app-store-submit configuration and Fastlane Deliver metadata before calling
 the submission script. Before an App Store upload, it publishes the configured
 privacy-policy Markdown file to the Privacy-Policies GitHub Pages repository
@@ -150,7 +149,7 @@ app_config_value() {
 prompt_value() {
   local variable="$1" label="$2" default_value="$3" required="$4" secret="${5:-0}"
   local response prompt
-  if [[ "$configure" != 1 && -n "${!variable:-}" ]]; then
+  if [[ "${prompt_all_values:-0}" != 1 ]]; then
     return
   fi
   while :; do
@@ -169,6 +168,36 @@ prompt_value() {
       return
     fi
     printf '%s is required.\n' "$label" > /dev/tty
+  done
+}
+
+show_setup_defaults() {
+  local variable fastlane_session_status
+  printf '\nDeployment configuration defaults:\n' > /dev/tty
+  for variable in APP_IDENTIFIER APP_NAME APP_SKU SCHEME XCODEPROJ ASC_KEY_ID ASC_ISSUER_ID ASC_KEY_FILE APPLE_ID REVIEW_CONTACT_FIRST_NAME REVIEW_CONTACT_LAST_NAME REVIEW_CONTACT_PHONE REVIEW_CONTACT_EMAIL REVIEW_NOTES PRIMARY_CATEGORY COPYRIGHT SUPPORT_URL LANGUAGE_NAME LANGUAGE_LEVEL PRIVACY_POLICY_SOURCE PRIVACY_POLICIES_REPO PRIVACY_POLICY_PUBLISHED_PATH PRIVACY_URL SUBTITLE DESCRIPTION KEYWORDS PROMOTIONAL_TEXT RELEASE_NOTES CONTENT_RIGHTS_DECLARATION USES_IDFA USES_NON_EXEMPT_ENCRYPTION SCREENSHOT_PATHS PREVIEW_PATH RUN_TESTS TEST_DEVICE BUILD_NUMBER AUTOMATIC_RELEASE RELEASE_VERSION; do
+    printf '  %-31s %s\n' "$variable" "${!variable:-<not set>}" > /dev/tty
+  done
+  fastlane_session_status='<not set>'
+  [[ -n "${FASTLANE_SESSION:-}" ]] && fastlane_session_status='<configured>'
+  printf '  %-31s %s\n\n' FASTLANE_SESSION "$fastlane_session_status" > /dev/tty
+}
+
+choose_setup_action() {
+  local response
+  while :; do
+    read -r -p 'Continue with these values or edit them one by one? [C/e]: ' response < /dev/tty
+    case "${response:-c}" in
+      c|C|continue|Continue)
+        if config_needs_answers; then
+          printf 'Some required values are not set. Choose E to provide them.\n' > /dev/tty
+        else
+          prompt_all_values=0
+          return
+        fi
+        ;;
+      e|E|edit|Edit) prompt_all_values=1; return ;;
+      *) printf 'Enter C to continue or E to edit.\n' > /dev/tty ;;
+    esac
   done
 }
 
@@ -214,7 +243,48 @@ interactive_setup() {
   copyright_owner="$(git config --get user.name 2>/dev/null || true)"
   build_number="$(project_value CURRENT_PROJECT_VERSION)"
 
-  printf 'No deployment configuration found. Set it up now; press Enter to accept a value in brackets.\n' > /dev/tty
+  # Resolve every value before presenting the first-run review. This lets the
+  # common path create a configuration without making the user re-accept each
+  # value, while retaining the detailed editing flow when it is needed.
+  : "${APP_IDENTIFIER:=$identifier}"
+  : "${APP_NAME:=${app_name:-$scheme}}"
+  : "${APP_SKU:=${identifier:-$scheme}}"
+  : "${SCHEME:=$scheme}"
+  : "${XCODEPROJ:=$xcodeproj}"
+  : "${REVIEW_NOTES:=No sign-in is required to use the app.}"
+  : "${PRIMARY_CATEGORY:=Education}"
+  : "${COPYRIGHT:=$(date +%Y) ${copyright_owner:-Your Company}}"
+  : "${LANGUAGE_NAME:=$language}"
+  : "${LANGUAGE_LEVEL:=$language_level}"
+  : "${PRIVACY_POLICY_SOURCE:=$privacy_source}"
+  : "${PRIVACY_POLICIES_REPO:=$privacy_repo}"
+  : "${PRIVACY_POLICY_PUBLISHED_PATH:=$policy_slug}"
+  privacy_url="https://asgarov1.github.io/Privacy-Policies/${PRIVACY_POLICY_PUBLISHED_PATH%.md}"
+  : "${PRIVACY_URL:=$privacy_url}"
+  : "${RELEASE_NOTES:=Initial release.}"
+  case "${CONTENT_RIGHTS_DECLARATION:-}" in
+    owns|third-party) ;;
+    *) CONTENT_RIGHTS_DECLARATION=owns ;;
+  esac
+  : "${USES_IDFA:=0}"
+  : "${USES_NON_EXEMPT_ENCRYPTION:=0}"
+  : "${SCREENSHOT_PATHS:=screenshots/iphone screenshots/ipad}"
+  : "${PREVIEW_PATH:=previews}"
+  : "${RUN_TESTS:=1}"
+  : "${TEST_DEVICE:=iPhone 17 Pro Max}"
+  : "${BUILD_NUMBER:=$build_number}"
+  : "${AUTOMATIC_RELEASE:=0}"
+  : "${RELEASE_VERSION:=$(project_value MARKETING_VERSION)}"
+
+  prompt_all_values="$configure"
+  if [[ "$configure" != 1 ]]; then
+    printf 'No deployment configuration found. Review the inferred and shared defaults below.\n' > /dev/tty
+    show_setup_defaults
+    choose_setup_action
+  else
+    printf 'Editing deployment configuration; press Enter to keep each value in brackets.\n' > /dev/tty
+  fi
+
   prompt_value APP_IDENTIFIER 'Bundle identifier' "${APP_IDENTIFIER:-$identifier}" 1
   prompt_value APP_NAME 'App Store name' "${APP_NAME:-${app_name:-$scheme}}" 1
   prompt_value APP_SKU 'App Store SKU' "${APP_SKU:-${identifier:-$scheme}}" 1

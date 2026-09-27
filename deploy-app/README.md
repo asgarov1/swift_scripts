@@ -17,13 +17,13 @@ to the Xcode app project you want to submit.
   /path/to/app
 ```
 
-When `.deploy-app.env` is missing, the command creates it interactively. It
-derives the bundle identifier, Xcode project, scheme, version, and (when
-available) language-app details; press Enter to accept a displayed default.
-It asks for values that cannot safely be inferred, including API credentials,
-review contact details, support URL, and truthful privacy declarations. The
-resulting `.deploy-app.env` is written with owner-only permissions and is never
-overwritten on later runs. Use `--configure` to review or update saved answers.
+When `.deploy-app.env` is missing, the command derives the bundle identifier,
+Xcode project, scheme, version, and (when available) language-app details, then
+shows the full resolved configuration. Choose `C` to save and continue with
+those values, or `E` to edit them one by one. `--configure` always opens the
+detailed editing flow for an existing configuration. The resulting
+`.deploy-app.env` is written with owner-only permissions and is never
+overwritten on later runs.
 
 To create only the documented example file without starting interactive setup:
 
