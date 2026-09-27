@@ -23,7 +23,7 @@ available) language-app details; press Enter to accept a displayed default.
 It asks for values that cannot safely be inferred, including API credentials,
 review contact details, support URL, and truthful privacy declarations. The
 resulting `.deploy-app.env` is written with owner-only permissions and is never
-overwritten on later runs.
+overwritten on later runs. Use `--configure` to review or update saved answers.
 
 To create only the documented example file without starting interactive setup:
 
@@ -39,8 +39,12 @@ If running without an interactive terminal, copy the example file to
 
 ```sh
 /Users/asgarov1/Projects/swift/scripts/deploy-app/deploy-app \
-  /path/to/app --dry-run
+/path/to/app --dry-run
 ```
+
+This performs the same local configuration, metadata, screenshot, and App
+Preview validation as a submission, but does not build, publish the privacy
+policy, or contact Apple.
 
 ### Create the App Store Connect record and submit the first build
 
@@ -65,6 +69,9 @@ If a run fails partway through, no completion state is written; rerun the same
 command and the bundled submission script will continue if it finds an already
 created App Store record. Change `RELEASE_VERSION` for a new App Store version.
 Use `--force` only when you intentionally want to rerun a completed release.
+The selected `BUILD_NUMBER` is held constant for a release, so a retry does not
+silently create another build; change both `RELEASE_VERSION` and `BUILD_NUMBER`
+for the next App Store version.
 
 ### Resume or intentionally rerun
 
