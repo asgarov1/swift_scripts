@@ -62,6 +62,14 @@ starting deployment.
 The bundled `app-store-submit` script is kept alongside `deploy-app`; the
 wrapper forwards `--release` when requested and always forwards `--no-tests`.
 
+### Team selection
+
+The shared defaults select Javid Asgarov's personal Developer Portal team
+(`2ZQKN8W3SJ`) and App Store Connect team (`128420046`), so Fastlane does not
+ask which team to use. To deploy a particular app through another membership,
+set `FASTLANE_TEAM_ID` and `FASTLANE_ITC_TEAM_ID` in that app's
+`.deploy-app.env`; those values override the shared defaults.
+
 ## Resuming safely
 
 `--init` is safe to repeat and preserves existing configuration. A successful
