@@ -5,16 +5,40 @@ collects the required values that cannot safely be guessed, writes the Fastlane
 Deliver metadata files, creates the existing `app-store-submit` configuration,
 then calls the supplied submission script with `--create-app`.
 
-```sh
-SCRIPT=/Users/asgarov1/Projects/swift/scripts/app-store-submit
-DEPLOY=/Users/asgarov1/Projects/swift/scripts/deploy-app/deploy-app
+## Terminal usage
 
-$DEPLOY "$SCRIPT" /path/to/app --init
+Run these commands in Terminal, replacing `/path/to/app` with the absolute path
+to the Xcode app project you want to submit.
+
+### First-time setup
+
+```sh
+/Users/asgarov1/Projects/swift/scripts/deploy-app/deploy-app \
+  /Users/asgarov1/Projects/swift/scripts/app-store-submit \
+  /path/to/app --init
+
 cp /path/to/app/.deploy-app.env.example /path/to/app/.deploy-app.env
-# Complete .deploy-app.env.
-$DEPLOY "$SCRIPT" /path/to/app --dry-run
-$DEPLOY "$SCRIPT" /path/to/app
+# Edit /path/to/app/.deploy-app.env and fill in every required value.
 ```
+
+### Validate without contacting Apple
+
+```sh
+/Users/asgarov1/Projects/swift/scripts/deploy-app/deploy-app \
+  /Users/asgarov1/Projects/swift/scripts/app-store-submit \
+  /path/to/app --dry-run
+```
+
+### Create the App Store Connect record and submit the first build
+
+```sh
+/Users/asgarov1/Projects/swift/scripts/deploy-app/deploy-app \
+  /Users/asgarov1/Projects/swift/scripts/app-store-submit \
+  /path/to/app
+```
+
+Add `--release` to automatically release after Apple approves it. Add
+`--no-tests` only if the same commit has already passed its tests.
 
 The delegated script must support the interface
 `<script> <app-project-path> --create-app`. The bundled `app-store-submit`
@@ -30,6 +54,20 @@ If a run fails partway through, no completion state is written; rerun the same
 command and the bundled submission script will continue if it finds an already
 created App Store record. Change `RELEASE_VERSION` for a new App Store version.
 Use `--force` only when you intentionally want to rerun a completed release.
+
+### Resume or intentionally rerun
+
+```sh
+# Safely resumes a partial deployment, or skips a completed unchanged release.
+/Users/asgarov1/Projects/swift/scripts/deploy-app/deploy-app \
+  /Users/asgarov1/Projects/swift/scripts/app-store-submit \
+  /path/to/app
+
+# Deliberately reruns a release that has already been recorded as complete.
+/Users/asgarov1/Projects/swift/scripts/deploy-app/deploy-app \
+  /Users/asgarov1/Projects/swift/scripts/app-store-submit \
+  /path/to/app --force
+```
 
 The wrapper validates and writes the fields Fastlane can upload: name, subtitle,
 description, keywords, promotional text, release notes, support URL, privacy
