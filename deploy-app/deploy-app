@@ -8,10 +8,9 @@ TEMPLATE="$SCRIPT_DIR/deploy-app.env.example"
 
 usage() {
   cat <<'EOF'
-Usage: deploy-app <submission-script> <app-project-path> [--init] [--dry-run] [--release] [--no-tests] [--force]
+Usage: deploy-app <app-project-path> [--init] [--dry-run] [--release] [--no-tests] [--force]
 
-The submission script must accept this interface:
-  <submission-script> <app-project-path> --create-app [--release] [--no-tests]
+The bundled app-store-submit helper archives, uploads, and submits the app.
 
 First run with --init. It creates .deploy-app.env.example in the app project.
 Copy it to .deploy-app.env, supply truthful App Store Connect, legal, review,
@@ -27,16 +26,18 @@ EOF
 
 fail() { printf 'deploy-app: %s\n' "$*" >&2; exit 1; }
 
-[[ $# -ge 2 ]] || { usage >&2; exit 2; }
-SUBMISSION_SCRIPT="$1"
-PROJECT_INPUT="$2"
+case "${1:-}" in
+  --help|-h) usage; exit 0 ;;
+esac
+[[ $# -ge 1 ]] || { usage >&2; exit 2; }
+PROJECT_INPUT="$1"
 PROJECT_DIR="$PROJECT_INPUT"
-shift 2
+shift
 
-[[ -f "$SUBMISSION_SCRIPT" ]] || fail "Submission script not found: $SUBMISSION_SCRIPT"
+SUBMISSION_SCRIPT="$SCRIPT_DIR/app-store-submit"
+[[ -f "$SUBMISSION_SCRIPT" ]] || fail "Bundled submission script not found: $SUBMISSION_SCRIPT"
 [[ -x "$SUBMISSION_SCRIPT" ]] || fail "Submission script is not executable: $SUBMISSION_SCRIPT"
 PROJECT_DIR="$(cd "$PROJECT_DIR" 2>/dev/null && pwd)" || fail "Project directory not found: $PROJECT_INPUT"
-SUBMISSION_SCRIPT="$(cd "$(dirname "$SUBMISSION_SCRIPT")" && pwd)/$(basename "$SUBMISSION_SCRIPT")"
 
 init=0
 dry_run=0
@@ -69,7 +70,7 @@ if [[ "$init" == 1 ]]; then
   exit 0
 fi
 
-[[ -f "$DEPLOY_ENV" ]] || fail "Missing $DEPLOY_ENV. Run: $0 $SUBMISSION_SCRIPT $PROJECT_DIR --init"
+[[ -f "$DEPLOY_ENV" ]] || fail "Missing $DEPLOY_ENV. Run: $0 $PROJECT_DIR --init"
 set -a
 # shellcheck disable=SC1090
 source "$DEPLOY_ENV"

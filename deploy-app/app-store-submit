@@ -8,13 +8,16 @@ usage() {
   cat <<'EOF'
 Usage: app-store-submit <app-project-path> [--init] [--create-app] [--release] [--no-tests] [--dry-run]
 
-The app project needs .app-store-submit.env (copy it from this script's
+The app project needs .app-store-submit.env (copy it from this directory's
 app-store-submit.env.example). Store metadata belongs at store-metadata/en-US
 by default; screenshots and previews default to screenshots/{iphone,ipad} and
 previews. No App Store credentials are kept in the project or this script.
 EOF
 }
 
+case "${1:-}" in
+  --help|-h) usage; exit 0 ;;
+esac
 [[ $# -ge 1 ]] || { usage >&2; exit 2; }
 PROJECT_DIR="$(cd "$1" 2>/dev/null && pwd)" || { printf 'Project directory not found: %s\n' "$1" >&2; exit 2; }
 shift

@@ -2,8 +2,8 @@
 
 `deploy-app` is a first-release wrapper around a project submission script. It
 collects the required values that cannot safely be guessed, writes the Fastlane
-Deliver metadata files, creates the existing `app-store-submit` configuration,
-then calls the supplied submission script with `--create-app`.
+Deliver metadata files, creates the bundled `app-store-submit` configuration,
+then calls that bundled submission helper with `--create-app`.
 
 ## Terminal usage
 
@@ -14,7 +14,6 @@ to the Xcode app project you want to submit.
 
 ```sh
 /Users/asgarov1/Projects/swift/scripts/deploy-app/deploy-app \
-  /Users/asgarov1/Projects/swift/scripts/app-store-submit \
   /path/to/app --init
 
 cp /path/to/app/.deploy-app.env.example /path/to/app/.deploy-app.env
@@ -25,7 +24,6 @@ cp /path/to/app/.deploy-app.env.example /path/to/app/.deploy-app.env
 
 ```sh
 /Users/asgarov1/Projects/swift/scripts/deploy-app/deploy-app \
-  /Users/asgarov1/Projects/swift/scripts/app-store-submit \
   /path/to/app --dry-run
 ```
 
@@ -33,16 +31,14 @@ cp /path/to/app/.deploy-app.env.example /path/to/app/.deploy-app.env
 
 ```sh
 /Users/asgarov1/Projects/swift/scripts/deploy-app/deploy-app \
-  /Users/asgarov1/Projects/swift/scripts/app-store-submit \
   /path/to/app
 ```
 
 Add `--release` to automatically release after Apple approves it. Add
 `--no-tests` only if the same commit has already passed its tests.
 
-The delegated script must support the interface
-`<script> <app-project-path> --create-app`. The bundled `app-store-submit`
-script does. `--release` and `--no-tests` are forwarded to it.
+The bundled `app-store-submit` script is kept alongside `deploy-app`; `--release`
+and `--no-tests` are forwarded to it.
 
 ## Resuming safely
 
@@ -60,12 +56,10 @@ Use `--force` only when you intentionally want to rerun a completed release.
 ```sh
 # Safely resumes a partial deployment, or skips a completed unchanged release.
 /Users/asgarov1/Projects/swift/scripts/deploy-app/deploy-app \
-  /Users/asgarov1/Projects/swift/scripts/app-store-submit \
   /path/to/app
 
 # Deliberately reruns a release that has already been recorded as complete.
 /Users/asgarov1/Projects/swift/scripts/deploy-app/deploy-app \
-  /Users/asgarov1/Projects/swift/scripts/app-store-submit \
   /path/to/app --force
 ```
 

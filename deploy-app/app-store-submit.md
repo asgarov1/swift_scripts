@@ -8,10 +8,10 @@ build for review.
 For a new project:
 
 ```sh
-/Users/asgarov1/Projects/swift/scripts/app-store-submit /path/to/app --init
+/Users/asgarov1/Projects/swift/scripts/deploy-app/app-store-submit /path/to/app --init
 cp /path/to/app/.app-store-submit.env.example /path/to/app/.app-store-submit.env
 # Fill in .app-store-submit.env and /path/to/app/store-metadata/en-US.
-/Users/asgarov1/Projects/swift/scripts/app-store-submit /path/to/app --create-app
+/Users/asgarov1/Projects/swift/scripts/deploy-app/app-store-submit /path/to/app --create-app
 ```
 
 The first command creates the Apple Developer identifier and App Store Connect
