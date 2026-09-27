@@ -183,15 +183,15 @@ platform :ios do
   lane :submit do
     api_key = app_store_connect_api_key(key_id: ENV.fetch("ASC_KEY_ID"), issuer_id: ENV.fetch("ASC_ISSUER_ID"), key_filepath: ENV.fetch("ASC_KEY_FILE"), duration: 1_200)
     update_app_age_rating(api_key: api_key, app_identifier: ENV.fetch("APP_IDENTIFIER"), age_rating_config_path: ENV.fetch("AGE_RATING_CONFIG_PATH"))
-    if ENV.fetch("AVAILABLE_IN_ALL_TERRITORIES", "1") == "1"
-      app = Spaceship::ConnectAPI::App.find(ENV.fetch("APP_IDENTIFIER"))
-      UI.user_error!("Could not find app #{ENV.fetch('APP_IDENTIFIER')} for pricing") unless app
-      app.update(attributes: { available_in_new_territories: true }, app_price_tier_id: ENV.fetch("PRICE_TIER", "0"), territory_ids: Spaceship::ConnectAPI::Territory.all.map(&:id))
-    end
     run_tests(project: ENV.fetch("XCODEPROJ"), scheme: ENV.fetch("SCHEME"), device: ENV.fetch("TEST_DEVICE", "iPhone 17 Pro Max"), clean: true) if ENV.fetch("RUN_TESTS", "1") == "1"
     increment_build_number(xcodeproj: ENV.fetch("XCODEPROJ"), build_number: ENV.fetch("BUILD_NUMBER"))
     build_app(project: ENV.fetch("XCODEPROJ"), scheme: ENV.fetch("SCHEME"), clean: true, export_method: "app-store", xcargs: "-allowProvisioningUpdates")
-    upload_options = { api_key: api_key, app_identifier: ENV.fetch("APP_IDENTIFIER"), metadata_path: ENV.fetch("METADATA_PATH"), screenshots_path: ENV.fetch("SCREENSHOTS_PATH"), primary_category: ENV.fetch("PRIMARY_CATEGORY", "Education"), copyright: ENV.fetch("COPYRIGHT"), price_tier: ENV.fetch("PRICE_TIER", "0").to_i, submission_information: { content_rights_contains_third_party_content: ENV.fetch("CONTENT_RIGHTS_DECLARATION") == "third-party" }, app_review_information: { first_name: ENV.fetch("REVIEW_CONTACT_FIRST_NAME"), last_name: ENV.fetch("REVIEW_CONTACT_LAST_NAME"), phone_number: ENV.fetch("REVIEW_CONTACT_PHONE"), email_address: ENV.fetch("REVIEW_CONTACT_EMAIL"), notes: ENV.fetch("REVIEW_NOTES", "No sign-in is required to use the app.") }, submit_for_review: true, automatic_release: ENV.fetch("AUTOMATIC_RELEASE", "0") == "1", force: true, run_precheck_before_submit: true, precheck_include_in_app_purchases: false, reject_if_possible: true }
+    # Fastlane 2.240.1 still writes the retired `apps.prices` and
+    # `apps.availableTerritories` relationships when `price_tier` is passed.
+    # Apple rejects that request before the binary can be uploaded. Set pricing
+    # and global availability once in App Store Connect; see the wrapper README.
+    # Never reject an in-progress review submission just to retry this lane.
+    upload_options = { api_key: api_key, app_identifier: ENV.fetch("APP_IDENTIFIER"), metadata_path: ENV.fetch("METADATA_PATH"), screenshots_path: ENV.fetch("SCREENSHOTS_PATH"), primary_category: ENV.fetch("PRIMARY_CATEGORY", "Education"), copyright: ENV.fetch("COPYRIGHT"), submission_information: { content_rights_contains_third_party_content: ENV.fetch("CONTENT_RIGHTS_DECLARATION") == "third-party" }, app_review_information: { first_name: ENV.fetch("REVIEW_CONTACT_FIRST_NAME"), last_name: ENV.fetch("REVIEW_CONTACT_LAST_NAME"), phone_number: ENV.fetch("REVIEW_CONTACT_PHONE"), email_address: ENV.fetch("REVIEW_CONTACT_EMAIL"), notes: ENV.fetch("REVIEW_NOTES", "No sign-in is required to use the app.") }, submit_for_review: true, automatic_release: ENV.fetch("AUTOMATIC_RELEASE", "0") == "1", force: true, run_precheck_before_submit: true, precheck_include_in_app_purchases: false, reject_if_possible: false }
     upload_options[:app_previews_path] = ENV["APP_PREVIEWS_PATH"] unless ENV["APP_PREVIEWS_PATH"].to_s.empty?
     upload_to_app_store(**upload_options)
   end

@@ -114,13 +114,22 @@ Connect record. Add `--yes` only for a non-interactive invocation.
 
 The wrapper validates and writes the fields Fastlane can upload: name, subtitle,
 description, keywords, promotional text, release notes, support URL, privacy
-URL, copyright, review contact, category, pricing, territory availability, and
-build identifiers. It submits the configured content-rights, IDFA, encryption,
-and age-rating declarations. New Jlingo configurations default to a current
-copyright year, free pricing (tier `0`), sale in every territory, and an offline
-learning app's no-content/no-feature age-rating answers; change these values if
-they are not truthful for the app. Apple may still request account-holder
-actions such as agreements, banking/tax setup, or a review response.
+URL, copyright, review contact, category, and build identifiers. It submits the
+configured content-rights, IDFA, encryption, and age-rating declarations. New
+Jlingo configurations default to a current copyright year, free pricing (tier
+`0`), sale in every territory, and an offline learning app's no-content/no-feature
+age-rating answers; change these values if they are not truthful for the app.
+
+Current Fastlane cannot reliably update App Store pricing or global territory
+availability with an API key: Apple has retired the API relationships that
+Fastlane uses for its `price_tier` option. Before the first submission, set the
+saved `PRICE_TIER` and `AVAILABLE_IN_ALL_TERRITORIES` values once in App Store
+Connect at **Monetization → Pricing and Availability**: select a price of
+`0.00`, enable all countries or regions, and enable availability in new
+territories. The submission lane intentionally leaves those settings untouched,
+so it can be retried without changing sale availability. Apple may still request
+account-holder actions such as agreements, banking/tax setup, or a review
+response.
 
 ## Privacy policy publication
 
