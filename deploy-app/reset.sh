@@ -64,7 +64,7 @@ printf 'The following local deploy-app artifacts will be removed:\n'
 printf '  %s\n' "${existing[@]}"
 if [[ "$assume_yes" == 0 ]]; then
   [[ -t 0 ]] || fail "Use --yes when running without an interactive terminal"
-  read -r 'reply?Continue? [y/N] '
+  read -r -p 'Continue? [y/N] ' reply
   [[ "$reply" =~ ^[Yy]([Ee][Ss])?$ ]] || { printf 'deploy-app reset: cancelled.\n'; exit 0; }
 fi
 
