@@ -14,11 +14,26 @@ to the Xcode app project you want to submit.
 
 ```sh
 /Users/asgarov1/Projects/swift/scripts/deploy-app/deploy-app \
-  /path/to/app --init
-
-cp /path/to/app/.deploy-app.env.example /path/to/app/.deploy-app.env
-# Edit /path/to/app/.deploy-app.env and fill in every required value.
+  /path/to/app
 ```
+
+When `.deploy-app.env` is missing, the command creates it interactively. It
+derives the bundle identifier, Xcode project, scheme, version, and (when
+available) language-app details; press Enter to accept a displayed default.
+It asks for values that cannot safely be inferred, including API credentials,
+review contact details, support URL, and truthful privacy declarations. The
+resulting `.deploy-app.env` is written with owner-only permissions and is never
+overwritten on later runs.
+
+To create only the documented example file without starting interactive setup:
+
+```sh
+/Users/asgarov1/Projects/swift/scripts/deploy-app/deploy-app \
+  /path/to/app --init
+```
+
+If running without an interactive terminal, copy the example file to
+`.deploy-app.env` and complete it manually.
 
 ### Validate without contacting Apple
 
