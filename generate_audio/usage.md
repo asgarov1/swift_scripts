@@ -41,9 +41,8 @@ make start <path_to_folder> <language> [output_dir]
 Examples:
 ```
 make start ../../german_a1/german_a1 de
-make start ../../portuguese-a1/portuguese-a1 pt ../portuguese_audio
+make start ../../Portuguese/portuguese-a2/portuguese-a2 pt ../../Portuguese/portuguese-a2/portuguese-a2/Audio
 make start ../../swedish_a1/swedish_a1 sv ../swedish_audio
-./do.sh ../../swedish_a1/swedish_a1 sv ../swedish_audio
 ```
 
 Supported languages: de, es, fr, it, pt, sv.

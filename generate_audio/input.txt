@@ -1,416 +1,282 @@
-o aluno a aluna
-um país dois países
-o jornal os jornais
-Tenho um livro. O livro é novo.
-uma casa umas casas
-os meus amigos
-um carro novo uma casa nova
-rapazes simpáticos raparigas simpáticas
-A estação é muito grande.
-Eu sou a Marta. Sou a Marta.
-Tu moras aqui?
-A senhora fala inglês?
-falo, falas, fala, falamos, falam
-Como peixe, mas eles comem carne.
-Abrimos a loja às nove.
-Tenho tempo e quero sair.
-Ela vai ao mercado e traz pão.
-Vocês sabem onde fica?
-Sou portuguesa e sou médica.
-O Rui está cansado. O livro está na mesa.
-Onde fica a estação?
-Tenho vinte anos.
-Temos fome e sede.
-Há dois cafés nesta rua.
-Quero visitar Lisboa.
-Sei falar português.
-Caminhar é bom.
-Estou a estudar.
-O que estás a fazer?
-Eles estão a trabalhar agora.
-Costumo almoçar em casa.
-Começo a trabalhar às oito.
-Acabamos de chegar.
-Amanhã vou visitar Sintra.
-Vamos jantar em casa.
-Na sexta-feira trabalho até às seis.
-Posso entrar?
-Podes falar mais devagar?
-Tenho de comprar um bilhete.
-Entra, por favor. Entre, por favor.
-Espera aqui. Espere aqui.
-Senta-te. Sente-se.
-Chamo-me Inês.
-Levantamo-nos às sete.
-Hoje não me deito tarde.
-Este livro é meu.
-Essa mochila é tua?
-O que é aquilo?
-a minha irmã o meu irmão
-Onde estão as tuas chaves?
-Este lugar é nosso.
-Quem é aquela senhora?
-Quanto custa este bilhete?
-Porque é que estudas português?
-Tenho duas irmãs e um irmão.
-São dez euros.
-Quantas pessoas há?
-Vou ao mercado e à farmácia.
-O livro está na mesa.
-Venho do Porto.
-Moro em Lisboa e vou ao Porto amanhã.
-Vamos para Portugal de avião.
-O café fica ao lado do banco.
-A aula começa às nove.
-Trabalho de manhã e estudo à noite.
-Moro aqui desde março.
-O autocarro chega cedo.
-Às vezes almoço aqui.
-Nunca bebo café à noite.
-A Ana lê o jornal.
-A Ana e o Pedro vivem em Coimbra.
-As casas são brancas.
-Falas português?
-Onde mora o João?
-Onde é que o João mora?
-Não como carne.
-— Moras aqui? — Sim, moro.
-— Tens carro? — Não, não tenho.
-Vejo um filme todas as semanas.
-Telefono aos meus pais ao domingo.
-Gosto de música portuguesa.
-Leio o jornal e tomo o pequeno-almoço.
-Vamos de comboio ou de autocarro?
-Estou cansada, então fico em casa.
-Acho que este livro é teu.
-Estudo português porque vivo em Portugal.
-Vou à biblioteca para estudar.
-O Pedro é médico.
-Lisboa é uma cidade linda!
-O professor lê um livro.
-Olá! Até logo!
-Bom dia!
-Boa tarde!
-Boa noite!
-Como estás?
-Como está?
-Estou bem, obrigado a!
-Nada mal.
-Mais ou menos.
-Adeus!
-Até breve!
-Olá!
-Como te chamas?
-Como se chama?
-Chamo-me...
-De onde és?
-Sou de...
-Que idade tens?
-Tenho ... anos.
-O que fazes?
-Sou estudante.
-Muito prazer!
-O prazer é meu.
-Um café, por favor.
-A conta, por favor.
-Queria...
-O que recomenda?
-Sou vegetariano a.
-Sou alérgico a a...
-Está delicioso!
-Tenho fome.
-Tenho sede.
-Para mim, a massa.
-Quanto custa?
-É demasiado caro.
-Posso pagar com cartão?
-Queria isto.
-Tem um tamanho maior?
-Estou só a ver.
-Aceitam cartões de crédito?
-Pode dar-me um saco?
-Não percebo.
-Pode repetir?
-Fale mais devagar, por favor.
-Onde é a casa de banho?
-Preciso de ajuda.
-Chame uma ambulância!
-Estou perdido a.
-Fala inglês?
-Obrigado a.
-De nada.
-Desculpa.
-Desculpe.
-Lamento.
-Por favor.
-Sim.
-Não.
-Está bem.
-Combinado.
-Não sei.
-Como se soletra?
-Podes repetir?
-Abra o livro.
-Abre o livro.
-Ouve.
-Repete, por favor.
-Escreve a resposta.
-Tenho uma pergunta.
-Qual é o teu nome próprio?
-Qual é o teu apelido?
-Qual é a tua morada?
-Qual é o teu número de telefone?
-Qual é a tua nacionalidade?
-Que dia é hoje?
-Qual é a data de hoje?
-Hoje é dia um de março.
-Faço anos em maio.
-Onde fica a paragem de autocarro?
-Vire à direita.
-Vire à esquerda.
-Siga em frente.
-Um bilhete, por favor.
-A que horas parte o comboio?
-Queria um táxi.
-Tenho uma reserva.
-Queria um quarto.
-Quanto custa uma noite?
-Que tempo está?
-Está calor.
-Está frio.
-Está a chover.
-Está sol.
-Dói-me a cabeça.
-Sinto-me mal.
-Preciso de um médico.
-O que fazes nos teus tempos livres?
-Gosto de música.
-Gosto de ir ao cinema.
-Não gosto de correr.
-ser
-ter
-fazer
-ir
-vir
-estar
-comer
-beber
-falar
-compreender
-querer
-poder
-dever
-saber
-ver
-escrever
-ler
-sentir
-morar
-trabalhar
-dizer
-dar
-apanhar
-pôr
-sair
-chegar
-partir
-voltar
-estudar
-jogar
-comprar
-encontrar
-chamar-se
-acordar
-ouvir
-abrir
-fechar
-perguntar
-responder
-pagar
-custar
-procurar
-olhar
-dormir
-viver
-esperar
-entrar
-gostar
-preferir
-caminhar
-correr
-nadar
-um
-dois
-três
-quatro
-cinco
-seis
-sete
-oito
-nove
-dez
-vinte
-cem
-vermelho
-azul
-verde
-amarelo
-preto
-branco
-laranja
-cor-de-rosa
-roxo
-cinzento
-mãe
-pai
-irmão
-irmã
-filho
-filha
-avô
-avó
-marido
-mulher
-tio
-tia
-pão
-água
-café
-chá
-pizza
-massa
-vinho
-cerveja
-carne
-peixe
-fruta
-legumes
-queijo
-leite
-ovo
-casa
-escola
-hospital
-restaurante
-supermercado
-banco
-farmácia
-estação
-aeroporto
-hotel
-igreja
-museu
-segunda-feira
-terça-feira
-quarta-feira
-quinta-feira
-sexta-feira
-sábado
-domingo
-hoje
-ontem
-amanhã
-manhã
-tarde
-fim da tarde
-noite
-zero
-onze
-doze
-treze
-catorze
-quinze
-dezasseis
-dezassete
-dezoito
-dezanove
-trinta
-quarenta
-cinquenta
-sessenta
-setenta
-oitenta
-noventa
-janeiro
-fevereiro
-março
-abril
-maio
-junho
-julho
-agosto
-setembro
-outubro
-novembro
-dezembro
-mês
-ano
-semana
-data
-nome próprio
-apelido
-morada
-telefone
-e-mail
-nacionalidade
-país
-cidade
-língua
-caneta
-lápis
-caderno
-página
-pergunta
-resposta
-professor
-quadro
-lição
-quarto
-cozinha
-casa de banho
-cama
-mesa
-cadeira
-porta
-janela
-apartamento
-rua
-praça
-paragem
-autocarro
-comboio
-bilhete
-direita
-esquerda
-em frente
-táxi
-sapatos
-calças
-camisa
-t-shirt
-vestido
-casaco
-sobretudo
-tamanho
-sol
-chuva
-vento
-calor
-frio
-primavera
-verão
-outono
-inverno
-cabeça
-mão
-olho
-orelha
-médico
-dor
-medicamento
-música
-desporto
-cinema
-filme
-tempo livre
-ginásio
+Se tivéssemos saído mais cedo, não teríamos perdido o comboio.
+Falava como se nunca tivesse ouvido a notícia.
+Lamento que não tenham podido participar.
+Até sexta-feira, teremos concluído o relatório.
+Quando chegares, eles já terão partido.
+Ter-se-á esquecido da reunião?
+Teríamos aceitado a proposta se houvesse garantias.
+Segundo a imprensa, o ministro teria recusado o acordo.
+Poderias ter avisado com antecedência.
+Duvido que tenham compreendido a proposta.
+Esperava que tivesses lido o documento.
+Quando tiveres terminado, envia-me a versão final.
+Se houvesse mais tempo, discutiríamos todos os pormenores.
+Se eu fosse responsável, mudaria o procedimento.
+O que farias se discordassem de ti?
+Se me tivesses informado, teria participado.
+O problema não teria surgido se tivessem seguido as instruções.
+Se não fosse a tua ajuda, não teríamos cumprido o prazo.
+Se tivesse aceite o cargo, agora viveria no estrangeiro.
+Se fosse mais prudente, não teria divulgado os dados.
+Hoje estaríamos preparados se tivéssemos investido antes.
+Mesmo que discordes, ouve os argumentos.
+Por mais que insistissem, ela não mudou de opinião.
+Embora os dados sejam limitados, a tendência é clara.
+Conheci a investigadora cujo artigo foi premiado.
+Estas são as condições às quais nos opusemos.
+A fase em que estamos exige prudência.
+O relatório? Entregaram-mo ontem.
+Não lho posso confirmar sem provas.
+Enviar-vo-lo-emos assim que estiver pronto.
+Quero explicar-lhe a situação.
+Não lhe quero impor uma decisão.
+Já me tinham avisado do risco.
+Apesar de termos apresentado provas, recusaram o pedido.
+Agradeço-lhes terem vindo tão depressa.
+Depois de os peritos terem analisado os dados, haverá uma decisão.
+Reconhecendo as limitações, aprovámos o projeto.
+Tendo analisado os dados, reformulou a hipótese.
+Mesmo sabendo dos riscos, decidiu avançar.
+A direção mandou rever o regulamento.
+A notícia fê-lo mudar de opinião.
+Deixaram os participantes apresentar objeções.
+Disse que estava ocupado e que telefonaria depois.
+Afirmaram que já tinham enviado o parecer.
+Perguntou-me se iria lá no dia seguinte.
+Que horas serão?
+Já terão recebido a mensagem.
+O acordo envolveria cerca de vinte entidades.
+Divulgaram os resultados ao fim da tarde.
+Publicaram-se novas orientações.
+O acesso ficou limitado aos investigadores.
+A implementação da medida exige acompanhamento.
+A redução das emissões continua a ser prioritária.
+A falta de transparência gerou contestação.
+Parece-me que os resultados devem ser interpretados com cautela.
+A medida poderá ter efeitos imprevistos.
+Tanto quanto sei, ainda não foi tomada uma decisão.
+Há duas propostas; esta é mais ambiciosa, mas aquela é mais viável.
+Uns apoiaram a medida; outros, não.
+O relatório identifica vários riscos. Esses problemas exigem resposta.
+Os custos aumentaram; contudo, a procura manteve-se.
+A amostra é reduzida; por conseguinte, as conclusões são provisórias.
+Em suma, a proposta é válida, embora precise de ajustes.
+Foi a falta de dados que atrasou a decisão.
+O que me preocupa é a ausência de garantias.
+Onde é que encontraram esta informação?
+A medida contribuiu para a redução dos custos.
+Os moradores opuseram-se à construção.
+Temos consciência das consequências.
+A escassez de recursos exige planeamento.
+A divulgação trouxe maior visibilidade ao projeto.
+A leitura do relatório confirmou a gravidade da situação.
+A senhora doutora deseja que envie o processo hoje?
+Importa-se de aguardar um momento?
+Podes enviar-me o artigo quando acabares?
+Embora haja riscos, a proposta merece ser analisada.
+O relatório, que foi publicado ontem, contém novos dados.
+A primeira solução reduz os custos; a segunda melhora a qualidade.
+A meu ver, a questão é mais complexa do que parece.
+Gostaria de salientar que não se trata de um caso isolado.
+Não partilho inteiramente esta interpretação.
+Embora concorde, gostaria de acrescentar um esclarecimento.
+É preciso ter igualmente em conta o outro ponto de vista.
+Reconheço que reagi de forma exagerada.
+Na verdade, referia-me a outro aspeto.
+Compreendo o argumento, mas não partilho as suas premissas.
+Não nego que haja vantagens, mas os riscos não devem ser subestimados.
+A questão não é tanto o custo, mas sim a eficácia da medida.
+Parece-me uma conclusão precipitada, pois não considera todos os fatores.
+Por um lado, compreendo a necessidade; por outro, receio as consequências práticas.
+O argumento é apenas parcialmente convincente.
+Não me parece que esta solução seja sustentável a longo prazo.
+Por mais interessante que seja a proposta, ainda faltam garantias concretas.
+Dito isto, não podemos ignorar as objeções levantadas.
+Se tivesse sabido mais cedo, teria intervindo.
+Se estivesse no teu lugar, saberia o que fazer.
+É bem possível que a situação mude em breve.
+Supondo que seja verdade, o que mudaria?
+Caso surjam novos elementos, informaremos de imediato.
+Se a medida tivesse sido introduzida mais cedo, teria evitado muitos problemas.
+Desde que os prazos sejam cumpridos, o plano é realista.
+A menos que o contexto mude, a decisão manter-se-á válida.
+Por conseguinte, a empresa teve de rever a sua estratégia.
+Graças à intervenção dela, evitámos danos mais graves.
+Este atraso deve-se a circunstâncias alheias à nossa vontade.
+Daí decorre a necessidade de rever a abordagem.
+A decisão teve repercussões em todo o setor.
+A subida dos preços afetou o poder de compra das famílias.
+Uma comunicação pouco clara pode dar origem a mal-entendidos.
+Queira aceitar as minhas mais sentidas condolências.
+Fico a aguardar a sua resposta.
+Escrevo-lhe para solicitar esclarecimentos adicionais sobre o assunto.
+Gostaria de agradecer a sua disponibilidade e colaboração.
+Ficar-lhe-ia grato se pudesse enviar-me a documentação atualizada.
+Permaneço ao dispor para prestar quaisquer informações adicionais.
+Solicito que o processo seja reapreciado.
+Estamos a ponderar a possibilidade de mudar de instalações.
+É necessário estabelecer prioridades antes de avançar.
+O candidato possui as competências adequadas às funções em causa.
+O estágio permitiu-me pôr em prática os conhecimentos adquiridos.
+A formação contínua é essencial para manter a competitividade.
+A investigação assenta numa amostra limitada, mas significativa.
+Antes de tirar conclusões, importa verificar a fiabilidade das fontes.
+A proteção ambiental não pode ser dissociada da justiça social.
+A transição energética exige investimento e mudanças culturais.
+A desinformação propaga-se rapidamente nas redes sociais.
+Um título enganador pode influenciar a perceção do leitor.
+A participação cívica contribui para a qualidade da democracia.
+O envelhecimento da população coloca novos desafios ao sistema de saúde.
+A cibersegurança tornou-se uma prioridade para instituições e empresas.
+Gostaria de esclarecer melhor o que quis dizer.
+Talvez me tenha exprimido mal: o meu argumento era outro.
+Poderia reformular a pergunta com maior precisão?
+Se bem percebi, está a propor uma solução intermédia.
+Não tive a intenção de pôr o seu trabalho em causa.
+Tentemos encontrar um ponto de entendimento.
+Parece-me que houve um mal-entendido de fundo.
+Posso acrescentar um esclarecimento antes de prosseguirmos?
+conceder
+impedir
+envolver
+enfrentar
+renunciar
+sustentar
+negar
+acolher
+distinguir
+sublinhar
+reafirmar
+fingir
+produzir
+transferir
+negligenciar
+suspeitar
+analisar
+avaliar
+esclarecer
+evidenciar
+detetar
+desencorajar
+fortalecer
+implementar
+a progressão na carreira
+a concorrência
+o pré-aviso
+o sindicato
+o contrato a termo certo
+o contrato sem termo
+a carta de motivação
+o salário líquido
+a carga de trabalho
+a conciliação entre a vida profissional e pessoal
+a hipótese
+a estatística
+a tese
+o aprofundamento
+o requisito
+a bolsa de estudo
+o abandono escolar
+a aprendizagem ao longo da vida
+a investigação aplicada
+os dados empíricos
+a abstenção
+a cidadania
+o testemunho
+o inquérito
+a medida
+a integração
+a inclusão
+a marginalização
+a disparidade
+a participação cívica
+a desflorestação
+a biodiversidade
+o efeito de estufa
+a pegada ecológica
+a adaptação climática
+a mitigação
+as emissões
+a economia circular
+a escassez de água
+a proteção do território
+a reabilitação
+a insónia
+o mal-estar
+a dependência
+o ensaio clínico
+a prevenção
+a saúde mental
+a resiliência
+o efeito secundário
+o apoio psicológico
+a inteligência artificial
+o dispositivo
+a sobrecarga
+a atualização
+a fuga de dados
+a realidade virtual
+a transição digital
+a cibersegurança
+o algoritmo
+a automatização
+a obra-prima
+a vanguarda
+o restauro
+a identidade cultural
+o sentimento de pertença
+o encontro intercultural
+o mal-entendido cultural
+o legado
+a valorização
+a fruição cultural
+a dívida pública
+o investimento
+a recessão
+a inflação
+o poder de compra
+o custo de vida
+o crescimento económico
+a despesa pública
+o défice
+o excedente
+a nuance
+o preconceito
+o pressuposto
+o pretexto
+a convicção
+a refutação
+a objeção
+o contra-argumento
+a inferência
+a coerência
+a sentença
+o delito
+o julgamento
+a denúncia
+a pena
+o direito de residência
+a autorização de residência
+o recurso
+o enquadramento jurídico
+a responsabilidade civil
+o desmentido
+a cobertura mediática
+o comunicado de imprensa
+a conferência de imprensa
+a desinformação
+a notícia falsa
+a verificação de factos
+a fonte primária
+a censura
+a liberdade de imprensa
+a humildade
+a ambição
+a teimosia
+o altruísmo
+a arrogância
+a paciência
+a confiança mútua
+o conflito
+o esclarecimento
+a responsabilidade partilhada
