@@ -281,7 +281,19 @@ case "$AUTOMATIC_RELEASE" in 0|1) ;; *) fail "AUTOMATIC_RELEASE must be 0 or 1" 
 if [[ -n "${LANGUAGE_NAME:-}" || -n "${LANGUAGE_LEVEL:-}" ]]; then
   [[ -n "${LANGUAGE_NAME:-}" && -n "${LANGUAGE_LEVEL:-}" ]] || fail "Set both LANGUAGE_NAME and LANGUAGE_LEVEL, or neither"
   language_lower="$(printf '%s' "$LANGUAGE_NAME" | tr '[:upper:]' '[:lower:]')"
-  DESCRIPTION="${DESCRIPTION:-Jlingo $LANGUAGE_NAME $LANGUAGE_LEVEL is a focused language-learning app for building practical $LANGUAGE_NAME skills. Study vocabulary, verbs, grammar, and useful phrases through short, structured lessons and quizzes. Build a consistent learning habit, review what you have studied, and grow your confidence one lesson at a time. Designed for independent learners working toward the $LANGUAGE_LEVEL level.}"
+  DESCRIPTION="${DESCRIPTION:-Jlingo $LANGUAGE_NAME $LANGUAGE_LEVEL is an offline study companion for learners building practical $LANGUAGE_NAME skills at the $LANGUAGE_LEVEL level.
+
+Five complete learning modules help you build confidence at this level: verb forms and conjugation practice, flashcard-based $LANGUAGE_LEVEL vocabulary, grammar explained in clear English with useful examples, everyday phrases for real situations, and a quiz to check your knowledge and track your progress.
+
+The app works entirely offline — no account, no ads, and no tracking. Your learning stays on your device.
+
+Every module includes free sample content. Unlock the full course with an in-app subscription or lifetime purchase.
+
+Earn a Certificate of Completion* by completing more than 80% of the course and scoring over 80% in the quiz.
+
+Terms of Use: https://www.apple.com/legal/internet-services/itunes/dev/stdeula/
+
+*The Certificate of Completion is not an official accreditation. It confirms that you have covered the learning material provided in the app.}"
   KEYWORDS="${KEYWORDS:-learn $language_lower,$language_lower lessons,$LANGUAGE_LEVEL,vocabulary,grammar,verbs,phrases,language learning}"
 fi
 [[ -n "${DESCRIPTION:-}" ]] || fail "Missing DESCRIPTION in $DEPLOY_ENV (or set LANGUAGE_NAME and LANGUAGE_LEVEL for the Jlingo default)"
