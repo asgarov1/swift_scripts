@@ -16,8 +16,9 @@ The bundled Fastlane helper archives, uploads, and submits the app. Deployment
 does not run tests; run and verify them before invoking this command.
 
 On the first run, a missing .deploy-app.env is created by showing the resolved
-defaults and asking whether to continue or edit. Choosing Edit walks through
-each value; --configure also opens that detailed editing flow. --init remains
+defaults and asking whether to continue or edit. If an existing configuration
+is missing a required value, only that value is requested and saved. Choosing
+Edit walks through each value; --configure also opens that detailed editing flow. --init remains
 available to create only the example file. The command creates the
 app-store-submit configuration and Fastlane Deliver metadata before calling
 the submission script. Before an App Store upload, it publishes the configured
@@ -85,6 +86,7 @@ for argument in "$@"; do
 done
 
 DEPLOY_ENV="$PROJECT_DIR/.deploy-app.env"
+DEPLOY_ENV_MISSING_VARIABLES=""
 if [[ "$init" == 1 ]]; then
   if [[ -e "$PROJECT_DIR/.deploy-app.env.example" ]]; then
     printf 'Keeping existing %s.\n' "$PROJECT_DIR/.deploy-app.env.example"
@@ -150,7 +152,7 @@ app_config_value() {
 prompt_value() {
   local variable="$1" label="$2" default_value="$3" required="$4" secret="${5:-0}"
   local response prompt
-  if [[ "${prompt_all_values:-0}" != 1 ]]; then
+  if [[ "${prompt_all_values:-0}" != 1 ]] && ! deploy_env_value_is_missing "$variable"; then
     return
   fi
   while :; do
@@ -169,6 +171,28 @@ prompt_value() {
       return
     fi
     printf '%s is required.\n' "$label" > /dev/tty
+  done
+}
+
+deploy_env_declares_variable() {
+  local variable="$1"
+  rg -q "^[[:space:]]*(export[[:space:]]+)?${variable}=" "$DEPLOY_ENV"
+}
+
+deploy_env_value_is_missing() {
+  [[ "|$DEPLOY_ENV_MISSING_VARIABLES|" == *"|$1|"* ]]
+}
+
+record_missing_deploy_env_values() {
+  local variable
+  DEPLOY_ENV_MISSING_VARIABLES=""
+  for variable in APP_IDENTIFIER APP_NAME APP_SKU SCHEME XCODEPROJ ASC_KEY_ID ASC_ISSUER_ID ASC_KEY_FILE APPLE_ID FASTLANE_SESSION REVIEW_CONTACT_FIRST_NAME REVIEW_CONTACT_LAST_NAME REVIEW_CONTACT_PHONE REVIEW_CONTACT_EMAIL REVIEW_NOTES PRIMARY_CATEGORY COPYRIGHT SUPPORT_URL LANGUAGE_NAME LANGUAGE_LEVEL PRIVACY_URL SUBTITLE DESCRIPTION KEYWORDS PROMOTIONAL_TEXT RELEASE_NOTES PRIVACY_POLICY_SOURCE PRIVACY_POLICIES_REPO PRIVACY_POLICY_PUBLISHED_PATH CONTENT_RIGHTS_DECLARATION USES_IDFA USES_NON_EXEMPT_ENCRYPTION SCREENSHOT_PATHS PREVIEW_PATH RUN_TESTS TEST_DEVICE BUILD_NUMBER AUTOMATIC_RELEASE RELEASE_VERSION; do
+    # Defaults are for first-run setup only. Do not silently restore a value
+    # the user removed from an existing project configuration.
+    if ! deploy_env_declares_variable "$variable"; then
+      DEPLOY_ENV_MISSING_VARIABLES+="|$variable"
+      unset "$variable"
+    fi
   done
 }
 
@@ -278,7 +302,9 @@ interactive_setup() {
   : "${RELEASE_VERSION:=$(project_value MARKETING_VERSION)}"
 
   prompt_all_values="$configure"
-  if [[ "$configure" != 1 ]]; then
+  if [[ "${prompt_missing_values:-0}" == 1 ]]; then
+    printf 'Deployment configuration is missing required values. Enter the requested values to update %s.\n' "$DEPLOY_ENV" > /dev/tty
+  elif [[ "$configure" != 1 ]]; then
     printf 'No deployment configuration found. Review the inferred and shared defaults below.\n' > /dev/tty
     show_setup_defaults
     choose_setup_action
@@ -336,6 +362,7 @@ interactive_setup() {
 }
 
 if [[ -f "$DEPLOY_ENV" ]]; then
+  record_missing_deploy_env_values
   set -a
   # shellcheck disable=SC1090
   source "$DEPLOY_ENV"
@@ -359,6 +386,10 @@ config_needs_answers() {
   return 1
 }
 
+prompt_missing_values=0
+if [[ -f "$DEPLOY_ENV" && "$configure" != 1 ]] && config_needs_answers; then
+  prompt_missing_values=1
+fi
 if [[ ! -f "$DEPLOY_ENV" || "$configure" == 1 ]] || config_needs_answers; then
   interactive_setup
 fi

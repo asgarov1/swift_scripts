@@ -23,7 +23,9 @@ shows the full resolved configuration. Choose `C` to save and continue with
 those values, or `E` to edit them one by one. `--configure` always opens the
 detailed editing flow for an existing configuration. The resulting
 `.deploy-app.env` is written with owner-only permissions and is never
-overwritten on later runs.
+overwritten on later runs. If you remove a required attribute from an existing
+file, the next interactive run asks only for the missing value and writes the
+completed configuration back to the file.
 
 To create only the documented example file without starting interactive setup:
 
