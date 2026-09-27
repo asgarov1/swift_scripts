@@ -176,20 +176,15 @@ platform :ios do
     app = Spaceship::ConnectAPI::App.find(app_identifier)
     UI.user_error!("Could not find App Store Connect app '#{app_identifier}' to verify its data-use declaration.") unless app
 
-    publish_state = Spaceship::ConnectAPI::AppDataUsagesPublishState.get(app_id: app.id)
-    return UI.message("App privacy data-use answers are already published.") if publish_state.published
-
-    case declaration
-    when "not-collected"
-      data_usages = Spaceship::ConnectAPI::AppDataUsage.all(app_id: app.id)
-      UI.user_error!("APP_DATA_USAGE_DECLARATION=not-collected conflicts with existing App Store Connect data-use answers. Set the declaration to configured after publishing truthful answers in App Store Connect.") unless data_usages.empty? || data_usages.all?(&:is_not_collected?)
-      publish_state.publish!
-      UI.success("Published the App Store Connect declaration that this app does not collect data.")
-    when "configured"
-      UI.user_error!("App privacy data-use answers have not been published. Publish the truthful answers in App Store Connect, then rerun this deployment.")
-    else
+    unless %w[not-collected configured].include?(declaration)
       UI.user_error!("APP_DATA_USAGE_DECLARATION must be not-collected or configured.")
     end
+
+    # Apple removed the dataUsagePublishState and appDataUsages relationships
+    # from the public App Store Connect API. Do not call Fastlane's stale
+    # wrappers here: they fail with a 404 before deliver can submit the app.
+    # Privacy answers must be completed and published in App Store Connect.
+    UI.important!("App privacy answers cannot be read or published with the App Store Connect API. Confirm that the truthful answers are published in App Store Connect before continuing (APP_DATA_USAGE_DECLARATION=#{declaration}).")
   end
 
   def staged_screenshots_are_already_uploaded?(app_identifier)

@@ -124,11 +124,11 @@ age-rating answers; change these values if they are not truthful for the app.
 
 App Store Connect requires published data-use answers before it will accept a
 version for review. Set `APP_DATA_USAGE_DECLARATION=not-collected` only when the
-app truly collects no data; the submission helper publishes that declaration
-through the configured API key before attempting review submission. For any app
-that collects data, complete and publish its truthful answers in App Store
-Connect first and set `APP_DATA_USAGE_DECLARATION=configured`; the helper then
-verifies that they are already published.
+app truly collects no data. Complete and publish the truthful answers in App
+Store Connect before deployment; set the declaration to `configured` when the
+app collects data. Apple removed the App Store Connect API relationships for
+reading or publishing these answers, so the helper validates the declaration
+value but cannot verify or publish it programmatically.
 
 Current Fastlane cannot reliably update App Store pricing or global territory
 availability with an API key: Apple has retired the API relationships that
