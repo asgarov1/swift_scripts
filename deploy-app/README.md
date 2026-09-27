@@ -73,6 +73,22 @@ The selected `BUILD_NUMBER` is held constant for a release, so a retry does not
 silently create another build; change both `RELEASE_VERSION` and `BUILD_NUMBER`
 for the next App Store version.
 
+### Reset local deployment setup
+
+To discard the local deployment configuration and generated App Store metadata
+for one project, run:
+
+```sh
+/Users/asgarov1/Projects/swift/scripts/deploy-app/reset.sh \
+  /path/to/app
+```
+
+The command lists its targets and asks for confirmation. It removes only
+`.deploy-app.env`, `.deploy-app.env.example`, `.app-store-submit.env`,
+`.deploy-app-state`, and `store-metadata/`; it does not remove screenshots,
+previews, the project itself, published privacy policies, or an App Store
+Connect record. Add `--yes` only for a non-interactive invocation.
+
 ### Resume or intentionally rerun
 
 ```sh
