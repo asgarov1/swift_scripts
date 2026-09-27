@@ -59,7 +59,8 @@ done
 METADATA_PATH="$(relative_path "${METADATA_PATH:-store-metadata}")"
 PREVIEW_PATH="$(relative_path "${PREVIEW_PATH:-previews}")"
 ASC_KEY_FILE="$(relative_path "$ASC_KEY_FILE")"
-export METADATA_PATH ASC_KEY_FILE
+XCODEPROJ="$(relative_path "$XCODEPROJ")"
+export METADATA_PATH ASC_KEY_FILE XCODEPROJ
 [[ -d "$XCODEPROJ" ]] || { printf 'Xcode project not found: %s\n' "$XCODEPROJ" >&2; exit 1; }
 [[ -f "$ASC_KEY_FILE" ]] || { printf 'API key not found: %s\n' "$ASC_KEY_FILE" >&2; exit 1; }
 [[ -d "$METADATA_PATH/en-US" ]] || { printf 'Metadata directory not found: %s/en-US\n' "$METADATA_PATH" >&2; exit 1; }
@@ -156,7 +157,8 @@ if [[ "$dry_run" == "1" ]]; then
   exit 0
 fi
 
-cat > "$FASTFILE_DIR/Fastfile" <<'RUBY'
+mkdir -p "$FASTFILE_DIR/fastlane"
+cat > "$FASTFILE_DIR/fastlane/Fastfile" <<'RUBY'
 default_platform(:ios)
 
 platform :ios do
@@ -192,7 +194,13 @@ RUBY
   bundle config set --local path "$TOOLS_DIR/vendor/bundle"
 )
 BUNDLE_GEMFILE="$TOOLS_DIR/Gemfile" bundle check >/dev/null 2>&1 || BUNDLE_GEMFILE="$TOOLS_DIR/Gemfile" bundle install
+run_fastlane() {
+  (
+    cd "$FASTFILE_DIR"
+    BUNDLE_GEMFILE="$TOOLS_DIR/Gemfile" bundle exec fastlane "$@"
+  )
+}
 if [[ "$create_app" == "1" ]]; then
-  BUNDLE_GEMFILE="$TOOLS_DIR/Gemfile" bundle exec fastlane --fastfile "$FASTFILE_DIR/Fastfile" ios create_app
+  run_fastlane ios create_app
 fi
-BUNDLE_GEMFILE="$TOOLS_DIR/Gemfile" bundle exec fastlane --fastfile "$FASTFILE_DIR/Fastfile" ios submit
+run_fastlane ios submit
