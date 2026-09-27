@@ -217,6 +217,10 @@ interactive_setup() {
   prompt_value KEYWORDS 'Keywords (optional for language apps)' "${KEYWORDS:-}" "$copy_required"
   prompt_value PROMOTIONAL_TEXT 'Promotional text (optional)' "${PROMOTIONAL_TEXT:-}" 0
   prompt_value RELEASE_NOTES 'Release notes' "${RELEASE_NOTES:-Initial release.}" 1
+  case "${CONTENT_RIGHTS_DECLARATION:-}" in
+    owns|third-party) ;;
+    *) CONTENT_RIGHTS_DECLARATION="" ;;
+  esac
   prompt_value CONTENT_RIGHTS_DECLARATION 'Content rights: owns or third-party' "${CONTENT_RIGHTS_DECLARATION:-owns}" 1
   prompt_value USES_IDFA 'Uses advertising identifier: 0 or 1' "${USES_IDFA:-0}" 1
   prompt_value USES_NON_EXEMPT_ENCRYPTION 'Uses non-exempt encryption: 0 or 1' "${USES_NON_EXEMPT_ENCRYPTION:-0}" 1
@@ -239,6 +243,10 @@ fi
 [[ -n "${FASTLANE_SESSION:-}" || -z "$FASTLANE_SESSION_FROM_SECRETS" ]] || FASTLANE_SESSION="$FASTLANE_SESSION_FROM_SECRETS"
 config_needs_answers() {
   local variable
+  case "${CONTENT_RIGHTS_DECLARATION:-}" in
+    owns|third-party) ;;
+    *) return 0 ;;
+  esac
   for variable in APP_IDENTIFIER APP_NAME APP_SKU SCHEME XCODEPROJ ASC_KEY_ID ASC_ISSUER_ID ASC_KEY_FILE APPLE_ID FASTLANE_SESSION REVIEW_CONTACT_FIRST_NAME REVIEW_CONTACT_LAST_NAME REVIEW_CONTACT_PHONE REVIEW_CONTACT_EMAIL REVIEW_NOTES PRIMARY_CATEGORY COPYRIGHT SUPPORT_URL PRIVACY_URL RELEASE_NOTES PRIVACY_POLICY_SOURCE PRIVACY_POLICIES_REPO PRIVACY_POLICY_PUBLISHED_PATH CONTENT_RIGHTS_DECLARATION USES_IDFA USES_NON_EXEMPT_ENCRYPTION RUN_TESTS AUTOMATIC_RELEASE BUILD_NUMBER RELEASE_VERSION; do
     [[ -n "${!variable:-}" ]] || return 0
   done
@@ -276,11 +284,7 @@ case "$AUTOMATIC_RELEASE" in 0|1) ;; *) fail "AUTOMATIC_RELEASE must be 0 or 1" 
 [[ "$BUILD_NUMBER" =~ ^[1-9][0-9]*$ ]] || fail "BUILD_NUMBER must be a positive integer"
 [[ "$SUPPORT_URL" =~ ^https:// ]] || fail "SUPPORT_URL must begin with https://"
 [[ "$PRIVACY_URL" =~ ^https:// ]] || fail "PRIVACY_URL must begin with https://"
-case "$CONTENT_RIGHTS_DECLARATION" in
-  own) CONTENT_RIGHTS_DECLARATION=owns ;;
-  owns|third-party) ;;
-  *) fail "CONTENT_RIGHTS_DECLARATION must be owns or third-party" ;;
-esac
+[[ "$CONTENT_RIGHTS_DECLARATION" == "owns" || "$CONTENT_RIGHTS_DECLARATION" == "third-party" ]] || fail "CONTENT_RIGHTS_DECLARATION must be owns or third-party"
 
 if [[ -n "${LANGUAGE_NAME:-}" || -n "${LANGUAGE_LEVEL:-}" ]]; then
   [[ -n "${LANGUAGE_NAME:-}" && -n "${LANGUAGE_LEVEL:-}" ]] || fail "Set both LANGUAGE_NAME and LANGUAGE_LEVEL, or neither"
