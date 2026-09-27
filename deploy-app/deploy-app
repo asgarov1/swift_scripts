@@ -30,6 +30,19 @@ EOF
 
 fail() { printf 'deploy-app: %s\n' "$*" >&2; exit 1; }
 
+normalize_fastlane_session() {
+  # Older interactive configurations could accidentally save the shell
+  # assignment printed by `fastlane spaceauth` as the value itself. Fastlane
+  # expects the cookie-jar YAML payload, beginning with `---`.
+  if [[ "${FASTLANE_SESSION:-}" == FASTLANE_SESSION=* ]]; then
+    printf 'deploy-app: removing an accidental FASTLANE_SESSION= prefix from %s.\n' "$1" >&2
+    FASTLANE_SESSION="${FASTLANE_SESSION#FASTLANE_SESSION=}"
+  fi
+  if [[ -n "${FASTLANE_SESSION:-}" && "${FASTLANE_SESSION:-}" != ---* ]]; then
+    fail "Invalid FASTLANE_SESSION in $1. It must be the cookie-jar YAML payload beginning with ---, not an export or FASTLANE_SESSION= assignment."
+  fi
+}
+
 case "${1:-}" in
   --help|-h) usage; exit 0 ;;
 esac
@@ -43,9 +56,11 @@ SUBMISSION_SCRIPT="$SCRIPT_DIR/app-store-submit"
 [[ -x "$SUBMISSION_SCRIPT" ]] || fail "Submission script is not executable: $SUBMISSION_SCRIPT"
 [[ -f "$DEFAULTS_ENV" ]] || fail "Bundled defaults file not found: $DEFAULTS_ENV"
 source "$DEFAULTS_ENV"
+normalize_fastlane_session "$DEFAULTS_ENV"
 FASTLANE_SESSION_FROM_SECRETS=""
 if [[ -f "$SECRETS_ENV" ]]; then
   source "$SECRETS_ENV"
+  normalize_fastlane_session "$SECRETS_ENV"
   FASTLANE_SESSION_FROM_SECRETS="${FASTLANE_SESSION:-}"
 fi
 PROJECT_DIR="$(cd "$PROJECT_DIR" 2>/dev/null && pwd)" || fail "Project directory not found: $PROJECT_INPUT"
@@ -254,6 +269,7 @@ if [[ -f "$DEPLOY_ENV" ]]; then
   # shellcheck disable=SC1090
   source "$DEPLOY_ENV"
   set +a
+  normalize_fastlane_session "$DEPLOY_ENV"
 fi
 migrate_legacy_privacy_policy_slug
 [[ -n "${FASTLANE_SESSION:-}" || -z "$FASTLANE_SESSION_FROM_SECRETS" ]] || FASTLANE_SESSION="$FASTLANE_SESSION_FROM_SECRETS"
@@ -279,6 +295,7 @@ set -a
 # shellcheck disable=SC1090
 source "$DEPLOY_ENV"
 set +a
+normalize_fastlane_session "$DEPLOY_ENV"
 migrate_legacy_privacy_policy_slug
 [[ -n "${FASTLANE_SESSION:-}" || -z "$FASTLANE_SESSION_FROM_SECRETS" ]] || FASTLANE_SESSION="$FASTLANE_SESSION_FROM_SECRETS"
 
