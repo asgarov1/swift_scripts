@@ -20,6 +20,17 @@ The delegated script must support the interface
 `<script> <app-project-path> --create-app`. The bundled `app-store-submit`
 script does. `--release` and `--no-tests` are forwarded to it.
 
+## Resuming safely
+
+`--init` is safe to repeat and preserves existing configuration. A successful
+release writes a local `.deploy-app-state` file containing only the app/version
+identifier and a configuration fingerprint. A rerun for the same
+`RELEASE_VERSION` and unchanged `.deploy-app.env` skips the delegated upload.
+If a run fails partway through, no completion state is written; rerun the same
+command and the bundled submission script will continue if it finds an already
+created App Store record. Change `RELEASE_VERSION` for a new App Store version.
+Use `--force` only when you intentionally want to rerun a completed release.
+
 The wrapper validates and writes the fields Fastlane can upload: name, subtitle,
 description, keywords, promotional text, release notes, support URL, privacy
 URL, copyright, review contact, category, and build identifiers. It also

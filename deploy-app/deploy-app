@@ -8,7 +8,7 @@ TEMPLATE="$SCRIPT_DIR/deploy-app.env.example"
 
 usage() {
   cat <<'EOF'
-Usage: deploy-app <submission-script> <app-project-path> [--init] [--dry-run] [--release] [--no-tests]
+Usage: deploy-app <submission-script> <app-project-path> [--init] [--dry-run] [--release] [--no-tests] [--force]
 
 The submission script must accept this interface:
   <submission-script> <app-project-path> --create-app [--release] [--no-tests]
@@ -17,7 +17,9 @@ First run with --init. It creates .deploy-app.env.example in the app project.
 Copy it to .deploy-app.env, supply truthful App Store Connect, legal, review,
 and metadata values, then run this command without --init. The command creates
 the app-store-submit configuration and Fastlane Deliver metadata before calling
-the submission script.
+the submission script. A successful deployment is recorded locally and is
+skipped on later runs when RELEASE_VERSION and the configuration are unchanged.
+Use --force to deliberately run it again.
 EOF
 }
 
@@ -38,12 +40,14 @@ init=0
 dry_run=0
 release=0
 no_tests=0
+force=0
 for argument in "$@"; do
   case "$argument" in
     --init) init=1 ;;
     --dry-run) dry_run=1 ;;
     --release) release=1 ;;
     --no-tests) no_tests=1 ;;
+    --force) force=1 ;;
     --help|-h) usage; exit 0 ;;
     *) fail "Unknown argument: $argument" ;;
   esac
@@ -51,10 +55,15 @@ done
 
 DEPLOY_ENV="$PROJECT_DIR/.deploy-app.env"
 if [[ "$init" == 1 ]]; then
-  [[ ! -e "$DEPLOY_ENV" && ! -e "$PROJECT_DIR/.deploy-app.env.example" ]] || fail "Deployment configuration already exists in $PROJECT_DIR"
-  cp "$TEMPLATE" "$PROJECT_DIR/.deploy-app.env.example"
+  if [[ -e "$PROJECT_DIR/.deploy-app.env.example" ]]; then
+    printf 'Keeping existing %s.\n' "$PROJECT_DIR/.deploy-app.env.example"
+  else
+    cp "$TEMPLATE" "$PROJECT_DIR/.deploy-app.env.example"
+    printf 'Created %s.\n' "$PROJECT_DIR/.deploy-app.env.example"
+  fi
   mkdir -p "$PROJECT_DIR/store-metadata/en-US"
-  printf 'Created %s. Copy it to .deploy-app.env, complete every value, and run deploy-app again.\n' "$PROJECT_DIR/.deploy-app.env.example"
+  [[ -e "$DEPLOY_ENV" ]] && printf 'Keeping existing %s.\n' "$DEPLOY_ENV"
+  printf 'Copy .deploy-app.env.example to .deploy-app.env if needed, complete every value, and run deploy-app again.\n'
   exit 0
 fi
 
@@ -69,7 +78,7 @@ required=(
   APPLE_ID FASTLANE_SESSION REVIEW_CONTACT_FIRST_NAME REVIEW_CONTACT_LAST_NAME
   REVIEW_CONTACT_PHONE REVIEW_CONTACT_EMAIL PRIMARY_CATEGORY COPYRIGHT
   SUPPORT_URL PRIVACY_URL DESCRIPTION KEYWORDS SUBTITLE PROMOTIONAL_TEXT RELEASE_NOTES
-  CONTENT_RIGHTS_DECLARATION USES_IDFA USES_NON_EXEMPT_ENCRYPTION
+  CONTENT_RIGHTS_DECLARATION USES_IDFA USES_NON_EXEMPT_ENCRYPTION RELEASE_VERSION
 )
 for variable in "${required[@]}"; do
   [[ -n "${!variable:-}" ]] || fail "Missing $variable in $DEPLOY_ENV"
@@ -113,13 +122,36 @@ write_env AUTOMATIC_RELEASE "${AUTOMATIC_RELEASE:-0}"
 write_env USES_IDFA "$USES_IDFA"
 write_env USES_NON_EXEMPT_ENCRYPTION "$USES_NON_EXEMPT_ENCRYPTION"
 write_env CONTENT_RIGHTS_DECLARATION "$CONTENT_RIGHTS_DECLARATION"
+write_env RELEASE_VERSION "$RELEASE_VERSION"
+
+STATE_FILE="$PROJECT_DIR/.deploy-app-state"
+CONFIG_FINGERPRINT="$(shasum -a 256 "$DEPLOY_ENV" | awk '{print $1}')"
+DEPLOYMENT_ID="$APP_IDENTIFIER:$RELEASE_VERSION"
+previous_deployment_id=""
+previous_fingerprint=""
+if [[ -f "$STATE_FILE" ]]; then
+  previous_deployment_id="$(awk -F= '$1 == "DEPLOYMENT_ID" { print substr($0, index($0, "=") + 1) }' "$STATE_FILE")"
+  previous_fingerprint="$(awk -F= '$1 == "CONFIG_FINGERPRINT" { print substr($0, index($0, "=") + 1) }' "$STATE_FILE")"
+fi
 
 if [[ "$dry_run" == 1 ]]; then
   printf 'Validated deployment configuration and generated metadata in %s. No Apple service was contacted.\n' "$PROJECT_DIR"
   exit 0
 fi
 
+if [[ "$force" != 1 && "$previous_deployment_id" == "$DEPLOYMENT_ID" && "$previous_fingerprint" == "$CONFIG_FINGERPRINT" ]]; then
+  printf 'Deployment %s already completed with this configuration; skipping. Use --force to run it again.\n' "$DEPLOYMENT_ID"
+  exit 0
+fi
+
 command=("$SUBMISSION_SCRIPT" "$PROJECT_DIR" --create-app)
 [[ "$release" == 1 ]] && command+=(--release)
 [[ "$no_tests" == 1 ]] && command+=(--no-tests)
-exec "${command[@]}"
+"${command[@]}"
+umask 077
+{
+  printf 'DEPLOYMENT_ID=%s\n' "$DEPLOYMENT_ID"
+  printf 'CONFIG_FINGERPRINT=%s\n' "$CONFIG_FINGERPRINT"
+  printf 'COMPLETED_AT=%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+} > "$STATE_FILE"
+printf 'Deployment %s completed and recorded in %s.\n' "$DEPLOYMENT_ID" "$STATE_FILE"

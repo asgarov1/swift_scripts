@@ -107,7 +107,14 @@ platform :ios do
   lane :create_app do
     UI.user_error!("APPLE_ID is required for --create-app") if ENV["APPLE_ID"].to_s.empty?
     UI.user_error!("FASTLANE_SESSION is required for --create-app") if ENV["FASTLANE_SESSION"].to_s.empty?
-    produce(app_identifier: ENV.fetch("APP_IDENTIFIER"), app_name: ENV.fetch("APP_NAME"), sku: ENV.fetch("APP_SKU"), platform: "ios", language: ENV.fetch("ASC_PRIMARY_LANGUAGE", "English"), app_version: get_version_number(xcodeproj: ENV.fetch("XCODEPROJ"), target: ENV.fetch("SCHEME")), skip_itc: false)
+    begin
+      produce(app_identifier: ENV.fetch("APP_IDENTIFIER"), app_name: ENV.fetch("APP_NAME"), sku: ENV.fetch("APP_SKU"), platform: "ios", language: ENV.fetch("ASC_PRIMARY_LANGUAGE", "English"), app_version: get_version_number(xcodeproj: ENV.fetch("XCODEPROJ"), target: ENV.fetch("SCHEME")), skip_itc: false)
+    rescue StandardError => error
+      # A prior run can create this record before a later upload step fails.
+      # Fastlane's exact wording differs across Apple backend responses.
+      raise unless error.message.match?(/already exists|duplicate|bundle identifier.*exist/i)
+      UI.important("App Store record already exists; continuing with the remaining deployment steps.")
+    end
   end
 
   lane :submit do
