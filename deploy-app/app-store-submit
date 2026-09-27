@@ -52,7 +52,7 @@ relative_path() {
   esac
 }
 
-required=(APP_IDENTIFIER APP_NAME APP_SKU SCHEME XCODEPROJ ASC_KEY_ID ASC_ISSUER_ID ASC_KEY_FILE REVIEW_CONTACT_FIRST_NAME REVIEW_CONTACT_LAST_NAME REVIEW_CONTACT_PHONE REVIEW_CONTACT_EMAIL BUILD_NUMBER COPYRIGHT CONTENT_RIGHTS_DECLARATION APP_DATA_USAGE_DECLARATION PRICE_TIER AVAILABLE_IN_ALL_TERRITORIES AGE_RATING_CONFIG_PATH)
+required=(APP_IDENTIFIER APP_NAME APP_SKU SCHEME XCODEPROJ ASC_KEY_ID ASC_ISSUER_ID ASC_KEY_FILE REVIEW_CONTACT_FIRST_NAME REVIEW_CONTACT_LAST_NAME REVIEW_CONTACT_PHONE REVIEW_CONTACT_EMAIL BUILD_NUMBER COPYRIGHT CONTENT_RIGHTS_DECLARATION PRICE_TIER AVAILABLE_IN_ALL_TERRITORIES AGE_RATING_CONFIG_PATH)
 for variable in "${required[@]}"; do
   [[ -n "${!variable:-}" ]] || { printf 'Missing %s in %s\n' "$variable" "$CONFIG_FILE" >&2; exit 1; }
 done
@@ -69,7 +69,6 @@ export AGE_RATING_CONFIG_PATH
 [[ -f "$AGE_RATING_CONFIG_PATH" ]] || { printf 'Age-rating configuration not found: %s\n' "$AGE_RATING_CONFIG_PATH" >&2; exit 1; }
 case "$AVAILABLE_IN_ALL_TERRITORIES" in 0|1) ;; *) printf 'AVAILABLE_IN_ALL_TERRITORIES must be 0 or 1\n' >&2; exit 1 ;; esac
 case "${SKIP_SCREENSHOTS_IF_UNCHANGED:-1}" in 0|1) ;; *) printf 'SKIP_SCREENSHOTS_IF_UNCHANGED must be 0 or 1\n' >&2; exit 1 ;; esac
-case "$APP_DATA_USAGE_DECLARATION" in not-collected|configured) ;; *) printf 'APP_DATA_USAGE_DECLARATION must be not-collected or configured\n' >&2; exit 1 ;; esac
 [[ "$PRICE_TIER" =~ ^[0-9]+$ ]] || { printf 'PRICE_TIER must be a non-negative integer\n' >&2; exit 1; }
 
 ASSET_DIR="$(mktemp -d "${TMPDIR:-/tmp}/app-store-assets.XXXXXX")"
@@ -171,22 +170,6 @@ default_platform(:ios)
 require "digest/md5"
 
 platform :ios do
-  def app_data_usage_is_published!(app_identifier)
-    declaration = ENV.fetch("APP_DATA_USAGE_DECLARATION")
-    app = Spaceship::ConnectAPI::App.find(app_identifier)
-    UI.user_error!("Could not find App Store Connect app '#{app_identifier}' to verify its data-use declaration.") unless app
-
-    unless %w[not-collected configured].include?(declaration)
-      UI.user_error!("APP_DATA_USAGE_DECLARATION must be not-collected or configured.")
-    end
-
-    # Apple removed the dataUsagePublishState and appDataUsages relationships
-    # from the public App Store Connect API. Do not call Fastlane's stale
-    # wrappers here: they fail with a 404 before deliver can submit the app.
-    # Privacy answers must be completed and published in App Store Connect.
-    UI.important!("App privacy answers cannot be read or published with the App Store Connect API. Confirm that the truthful answers are published in App Store Connect before continuing (APP_DATA_USAGE_DECLARATION=#{declaration}).")
-  end
-
   def staged_screenshots_are_already_uploaded?(app_identifier)
     app = Spaceship::ConnectAPI::App.find(app_identifier)
     return false unless app
@@ -226,7 +209,6 @@ platform :ios do
 
   lane :submit do
     api_key = app_store_connect_api_key(key_id: ENV.fetch("ASC_KEY_ID"), issuer_id: ENV.fetch("ASC_ISSUER_ID"), key_filepath: ENV.fetch("ASC_KEY_FILE"), duration: 1_200)
-    app_data_usage_is_published!(ENV.fetch("APP_IDENTIFIER"))
     update_app_age_rating(api_key: api_key, app_identifier: ENV.fetch("APP_IDENTIFIER"), age_rating_config_path: ENV.fetch("AGE_RATING_CONFIG_PATH"))
     run_tests(project: ENV.fetch("XCODEPROJ"), scheme: ENV.fetch("SCHEME"), device: ENV.fetch("TEST_DEVICE", "iPhone 17 Pro Max"), clean: true) if ENV.fetch("RUN_TESTS", "1") == "1"
     increment_build_number(xcodeproj: ENV.fetch("XCODEPROJ"), build_number: ENV.fetch("BUILD_NUMBER"))
