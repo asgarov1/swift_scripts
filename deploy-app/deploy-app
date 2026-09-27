@@ -1,0 +1,125 @@
+#!/usr/bin/env bash
+# Prepare the complete first-release App Store Connect metadata, then delegate
+# the archive/upload/submission to a project submission script.
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+TEMPLATE="$SCRIPT_DIR/deploy-app.env.example"
+
+usage() {
+  cat <<'EOF'
+Usage: deploy-app <submission-script> <app-project-path> [--init] [--dry-run] [--release] [--no-tests]
+
+The submission script must accept this interface:
+  <submission-script> <app-project-path> --create-app [--release] [--no-tests]
+
+First run with --init. It creates .deploy-app.env.example in the app project.
+Copy it to .deploy-app.env, supply truthful App Store Connect, legal, review,
+and metadata values, then run this command without --init. The command creates
+the app-store-submit configuration and Fastlane Deliver metadata before calling
+the submission script.
+EOF
+}
+
+fail() { printf 'deploy-app: %s\n' "$*" >&2; exit 1; }
+
+[[ $# -ge 2 ]] || { usage >&2; exit 2; }
+SUBMISSION_SCRIPT="$1"
+PROJECT_INPUT="$2"
+PROJECT_DIR="$PROJECT_INPUT"
+shift 2
+
+[[ -f "$SUBMISSION_SCRIPT" ]] || fail "Submission script not found: $SUBMISSION_SCRIPT"
+[[ -x "$SUBMISSION_SCRIPT" ]] || fail "Submission script is not executable: $SUBMISSION_SCRIPT"
+PROJECT_DIR="$(cd "$PROJECT_DIR" 2>/dev/null && pwd)" || fail "Project directory not found: $PROJECT_INPUT"
+SUBMISSION_SCRIPT="$(cd "$(dirname "$SUBMISSION_SCRIPT")" && pwd)/$(basename "$SUBMISSION_SCRIPT")"
+
+init=0
+dry_run=0
+release=0
+no_tests=0
+for argument in "$@"; do
+  case "$argument" in
+    --init) init=1 ;;
+    --dry-run) dry_run=1 ;;
+    --release) release=1 ;;
+    --no-tests) no_tests=1 ;;
+    --help|-h) usage; exit 0 ;;
+    *) fail "Unknown argument: $argument" ;;
+  esac
+done
+
+DEPLOY_ENV="$PROJECT_DIR/.deploy-app.env"
+if [[ "$init" == 1 ]]; then
+  [[ ! -e "$DEPLOY_ENV" && ! -e "$PROJECT_DIR/.deploy-app.env.example" ]] || fail "Deployment configuration already exists in $PROJECT_DIR"
+  cp "$TEMPLATE" "$PROJECT_DIR/.deploy-app.env.example"
+  mkdir -p "$PROJECT_DIR/store-metadata/en-US"
+  printf 'Created %s. Copy it to .deploy-app.env, complete every value, and run deploy-app again.\n' "$PROJECT_DIR/.deploy-app.env.example"
+  exit 0
+fi
+
+[[ -f "$DEPLOY_ENV" ]] || fail "Missing $DEPLOY_ENV. Run: $0 $SUBMISSION_SCRIPT $PROJECT_DIR --init"
+set -a
+# shellcheck disable=SC1090
+source "$DEPLOY_ENV"
+set +a
+
+required=(
+  APP_IDENTIFIER APP_NAME APP_SKU SCHEME XCODEPROJ ASC_KEY_ID ASC_ISSUER_ID ASC_KEY_FILE
+  APPLE_ID FASTLANE_SESSION REVIEW_CONTACT_FIRST_NAME REVIEW_CONTACT_LAST_NAME
+  REVIEW_CONTACT_PHONE REVIEW_CONTACT_EMAIL PRIMARY_CATEGORY COPYRIGHT
+  SUPPORT_URL PRIVACY_URL DESCRIPTION KEYWORDS SUBTITLE PROMOTIONAL_TEXT RELEASE_NOTES
+  CONTENT_RIGHTS_DECLARATION USES_IDFA USES_NON_EXEMPT_ENCRYPTION
+)
+for variable in "${required[@]}"; do
+  [[ -n "${!variable:-}" ]] || fail "Missing $variable in $DEPLOY_ENV"
+done
+
+case "$USES_IDFA" in 0|1) ;; *) fail "USES_IDFA must be 0 or 1" ;; esac
+case "$USES_NON_EXEMPT_ENCRYPTION" in 0|1) ;; *) fail "USES_NON_EXEMPT_ENCRYPTION must be 0 or 1" ;; esac
+[[ "$SUPPORT_URL" =~ ^https:// ]] || fail "SUPPORT_URL must begin with https://"
+[[ "$PRIVACY_URL" =~ ^https:// ]] || fail "PRIVACY_URL must begin with https://"
+[[ "$CONTENT_RIGHTS_DECLARATION" == "owns" || "$CONTENT_RIGHTS_DECLARATION" == "third-party" ]] || fail "CONTENT_RIGHTS_DECLARATION must be owns or third-party"
+
+metadata_dir="$PROJECT_DIR/store-metadata/en-US"
+mkdir -p "$metadata_dir"
+write_metadata() { printf '%s\n' "$2" > "$metadata_dir/$1"; }
+write_metadata name.txt "$APP_NAME"
+write_metadata subtitle.txt "$SUBTITLE"
+write_metadata description.txt "$DESCRIPTION"
+write_metadata keywords.txt "$KEYWORDS"
+write_metadata promotional_text.txt "$PROMOTIONAL_TEXT"
+write_metadata release_notes.txt "$RELEASE_NOTES"
+write_metadata support_url.txt "$SUPPORT_URL"
+write_metadata privacy_url.txt "$PRIVACY_URL"
+write_metadata copyright.txt "$COPYRIGHT"
+
+# The legacy submit helper consumes this file. %q keeps spaces and punctuation
+# source-safe without exposing credentials in command arguments.
+submit_env="$PROJECT_DIR/.app-store-submit.env"
+write_env() { printf '%s=%q\n' "$1" "$2" >> "$submit_env"; }
+: > "$submit_env"
+for variable in APP_IDENTIFIER APP_NAME APP_SKU SCHEME XCODEPROJ ASC_KEY_ID ASC_ISSUER_ID ASC_KEY_FILE APPLE_ID FASTLANE_SESSION REVIEW_CONTACT_FIRST_NAME REVIEW_CONTACT_LAST_NAME REVIEW_CONTACT_PHONE REVIEW_CONTACT_EMAIL PRIMARY_CATEGORY; do
+  write_env "$variable" "${!variable}"
+done
+write_env REVIEW_NOTES "${REVIEW_NOTES:-No sign-in is required to use the app.}"
+write_env METADATA_PATH store-metadata
+write_env SCREENSHOT_PATHS "${SCREENSHOT_PATHS:-screenshots/iphone screenshots/ipad}"
+write_env PREVIEW_PATH "${PREVIEW_PATH:-previews}"
+write_env RUN_TESTS "${RUN_TESTS:-1}"
+write_env TEST_DEVICE "${TEST_DEVICE:-iPhone 17 Pro Max}"
+write_env SKIP_BUILD_NUMBER_BUMP "${SKIP_BUILD_NUMBER_BUMP:-0}"
+write_env AUTOMATIC_RELEASE "${AUTOMATIC_RELEASE:-0}"
+write_env USES_IDFA "$USES_IDFA"
+write_env USES_NON_EXEMPT_ENCRYPTION "$USES_NON_EXEMPT_ENCRYPTION"
+write_env CONTENT_RIGHTS_DECLARATION "$CONTENT_RIGHTS_DECLARATION"
+
+if [[ "$dry_run" == 1 ]]; then
+  printf 'Validated deployment configuration and generated metadata in %s. No Apple service was contacted.\n' "$PROJECT_DIR"
+  exit 0
+fi
+
+command=("$SUBMISSION_SCRIPT" "$PROJECT_DIR" --create-app)
+[[ "$release" == 1 ]] && command+=(--release)
+[[ "$no_tests" == 1 ]] && command+=(--no-tests)
+exec "${command[@]}"
