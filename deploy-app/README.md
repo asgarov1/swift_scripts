@@ -117,7 +117,9 @@ validates the configuration but does not publish the policy or contact Apple.
 For Jlingo language apps, set `LANGUAGE_NAME` and `LANGUAGE_LEVEL` in
 `.deploy-app.env` for the app being submitted, for example `Spanish` and `A1`.
 Leaving `DESCRIPTION` and `KEYWORDS` empty then creates a tailored default
-description and keyword list for that language and level. The description
+description and keyword list for that language and level. Keywords include the
+language, level, learning-module terms, and `jlpt` or `topik` only when those
+exam labels match Japanese or Korean respectively. The description
 describes the app's offline learning modules, samples, purchase options, and
 Certificate of Completion without making a language-specific exam claim. Set
 either field when you need custom App Store copy; non-language apps must set
