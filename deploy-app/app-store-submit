@@ -185,7 +185,13 @@ platform :ios do
 end
 RUBY
 
-BUNDLE_GEMFILE="$TOOLS_DIR/Gemfile" bundle check >/dev/null 2>&1 || BUNDLE_GEMFILE="$TOOLS_DIR/Gemfile" bundle install --path "$TOOLS_DIR/vendor/bundle"
+# Bundler 4 no longer supports `bundle install --path`. Keep the dependency
+# location stable by storing it in this tool's local Bundler configuration.
+(
+  cd "$TOOLS_DIR"
+  bundle config set --local path "$TOOLS_DIR/vendor/bundle"
+)
+BUNDLE_GEMFILE="$TOOLS_DIR/Gemfile" bundle check >/dev/null 2>&1 || BUNDLE_GEMFILE="$TOOLS_DIR/Gemfile" bundle install
 if [[ "$create_app" == "1" ]]; then
   BUNDLE_GEMFILE="$TOOLS_DIR/Gemfile" bundle exec fastlane --fastfile "$FASTFILE_DIR/Fastfile" ios create_app
 fi
