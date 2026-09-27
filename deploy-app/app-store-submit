@@ -52,7 +52,7 @@ relative_path() {
   esac
 }
 
-required=(APP_IDENTIFIER APP_NAME APP_SKU SCHEME XCODEPROJ ASC_KEY_ID ASC_ISSUER_ID ASC_KEY_FILE REVIEW_CONTACT_FIRST_NAME REVIEW_CONTACT_LAST_NAME REVIEW_CONTACT_PHONE REVIEW_CONTACT_EMAIL BUILD_NUMBER COPYRIGHT CONTENT_RIGHTS_DECLARATION PRICE_TIER AVAILABLE_IN_ALL_TERRITORIES AGE_RATING_CONFIG_PATH)
+required=(APP_IDENTIFIER APP_NAME APP_SKU SCHEME XCODEPROJ ASC_KEY_ID ASC_ISSUER_ID ASC_KEY_FILE REVIEW_CONTACT_FIRST_NAME REVIEW_CONTACT_LAST_NAME REVIEW_CONTACT_PHONE REVIEW_CONTACT_EMAIL BUILD_NUMBER COPYRIGHT CONTENT_RIGHTS_DECLARATION APP_DATA_USAGE_DECLARATION PRICE_TIER AVAILABLE_IN_ALL_TERRITORIES AGE_RATING_CONFIG_PATH)
 for variable in "${required[@]}"; do
   [[ -n "${!variable:-}" ]] || { printf 'Missing %s in %s\n' "$variable" "$CONFIG_FILE" >&2; exit 1; }
 done
@@ -68,6 +68,8 @@ export AGE_RATING_CONFIG_PATH
 [[ -d "$METADATA_PATH/en-US" ]] || { printf 'Metadata directory not found: %s/en-US\n' "$METADATA_PATH" >&2; exit 1; }
 [[ -f "$AGE_RATING_CONFIG_PATH" ]] || { printf 'Age-rating configuration not found: %s\n' "$AGE_RATING_CONFIG_PATH" >&2; exit 1; }
 case "$AVAILABLE_IN_ALL_TERRITORIES" in 0|1) ;; *) printf 'AVAILABLE_IN_ALL_TERRITORIES must be 0 or 1\n' >&2; exit 1 ;; esac
+case "${SKIP_SCREENSHOTS_IF_UNCHANGED:-1}" in 0|1) ;; *) printf 'SKIP_SCREENSHOTS_IF_UNCHANGED must be 0 or 1\n' >&2; exit 1 ;; esac
+case "$APP_DATA_USAGE_DECLARATION" in not-collected|configured) ;; *) printf 'APP_DATA_USAGE_DECLARATION must be not-collected or configured\n' >&2; exit 1 ;; esac
 [[ "$PRICE_TIER" =~ ^[0-9]+$ ]] || { printf 'PRICE_TIER must be a non-negative integer\n' >&2; exit 1; }
 
 ASSET_DIR="$(mktemp -d "${TMPDIR:-/tmp}/app-store-assets.XXXXXX")"
@@ -155,6 +157,7 @@ done
 export SCREENSHOTS_PATH="$ASSET_DIR"
 [[ "$preview_count" -gt 0 ]] && export APP_PREVIEWS_PATH="$PREVIEW_ASSET_DIR"
 export AUTOMATIC_RELEASE="$release"
+export SKIP_SCREENSHOTS_IF_UNCHANGED="${SKIP_SCREENSHOTS_IF_UNCHANGED:-1}"
 [[ "$no_tests" == "1" ]] && export RUN_TESTS=0
 
 if [[ "$dry_run" == "1" ]]; then
@@ -165,8 +168,54 @@ fi
 mkdir -p "$FASTFILE_DIR/fastlane"
 cat > "$FASTFILE_DIR/fastlane/Fastfile" <<'RUBY'
 default_platform(:ios)
+require "digest/md5"
 
 platform :ios do
+  def app_data_usage_is_published!(app_identifier)
+    declaration = ENV.fetch("APP_DATA_USAGE_DECLARATION")
+    app = Spaceship::ConnectAPI::App.find(app_identifier)
+    UI.user_error!("Could not find App Store Connect app '#{app_identifier}' to verify its data-use declaration.") unless app
+
+    publish_state = Spaceship::ConnectAPI::AppDataUsagesPublishState.get(app_id: app.id)
+    return UI.message("App privacy data-use answers are already published.") if publish_state.published
+
+    case declaration
+    when "not-collected"
+      data_usages = Spaceship::ConnectAPI::AppDataUsage.all(app_id: app.id)
+      UI.user_error!("APP_DATA_USAGE_DECLARATION=not-collected conflicts with existing App Store Connect data-use answers. Set the declaration to configured after publishing truthful answers in App Store Connect.") unless data_usages.empty? || data_usages.all?(&:is_not_collected?)
+      publish_state.publish!
+      UI.success("Published the App Store Connect declaration that this app does not collect data.")
+    when "configured"
+      UI.user_error!("App privacy data-use answers have not been published. Publish the truthful answers in App Store Connect, then rerun this deployment.")
+    else
+      UI.user_error!("APP_DATA_USAGE_DECLARATION must be not-collected or configured.")
+    end
+  end
+
+  def staged_screenshots_are_already_uploaded?(app_identifier)
+    app = Spaceship::ConnectAPI::App.find(app_identifier)
+    return false unless app
+    version = app.get_edit_app_store_version(platform: Spaceship::ConnectAPI::Platform::IOS)
+    return false unless version
+    localization = version.get_app_store_version_localizations.find { |item| item.locale == "en-US" }
+    return false unless localization
+
+    local_checksums = Dir.glob(File.join(ENV.fetch("SCREENSHOTS_PATH"), "en-US", "*"))
+                         .select { |path| File.file?(path) }
+                         .map { |path| Digest::MD5.file(path).hexdigest }
+    return false if local_checksums.empty?
+    remote_checksums = localization.get_app_screenshot_sets
+                         .flat_map { |set| set.app_screenshots || [] }
+                         .select(&:complete?)
+                         .map(&:source_file_checksum)
+                         .compact
+    (local_checksums - remote_checksums).empty?
+  rescue StandardError => error
+    # A temporary read failure must not make a release omit required media.
+    UI.important("Could not verify existing screenshots; uploading them normally (#{error.message}).")
+    false
+  end
+
   lane :create_app do
     UI.user_error!("APPLE_ID is required for --create-app") if ENV["APPLE_ID"].to_s.empty?
     UI.user_error!("FASTLANE_SESSION is required for --create-app") if ENV["FASTLANE_SESSION"].to_s.empty?
@@ -182,6 +231,7 @@ platform :ios do
 
   lane :submit do
     api_key = app_store_connect_api_key(key_id: ENV.fetch("ASC_KEY_ID"), issuer_id: ENV.fetch("ASC_ISSUER_ID"), key_filepath: ENV.fetch("ASC_KEY_FILE"), duration: 1_200)
+    app_data_usage_is_published!(ENV.fetch("APP_IDENTIFIER"))
     update_app_age_rating(api_key: api_key, app_identifier: ENV.fetch("APP_IDENTIFIER"), age_rating_config_path: ENV.fetch("AGE_RATING_CONFIG_PATH"))
     run_tests(project: ENV.fetch("XCODEPROJ"), scheme: ENV.fetch("SCHEME"), device: ENV.fetch("TEST_DEVICE", "iPhone 17 Pro Max"), clean: true) if ENV.fetch("RUN_TESTS", "1") == "1"
     increment_build_number(xcodeproj: ENV.fetch("XCODEPROJ"), build_number: ENV.fetch("BUILD_NUMBER"))
@@ -192,6 +242,10 @@ platform :ios do
     # and global availability once in App Store Connect; see the wrapper README.
     # Never reject an in-progress review submission just to retry this lane.
     upload_options = { api_key: api_key, app_identifier: ENV.fetch("APP_IDENTIFIER"), metadata_path: ENV.fetch("METADATA_PATH"), screenshots_path: ENV.fetch("SCREENSHOTS_PATH"), primary_category: ENV.fetch("PRIMARY_CATEGORY", "Education"), copyright: ENV.fetch("COPYRIGHT"), submission_information: { content_rights_contains_third_party_content: ENV.fetch("CONTENT_RIGHTS_DECLARATION") == "third-party" }, app_review_information: { first_name: ENV.fetch("REVIEW_CONTACT_FIRST_NAME"), last_name: ENV.fetch("REVIEW_CONTACT_LAST_NAME"), phone_number: ENV.fetch("REVIEW_CONTACT_PHONE"), email_address: ENV.fetch("REVIEW_CONTACT_EMAIL"), notes: ENV.fetch("REVIEW_NOTES", "No sign-in is required to use the app.") }, submit_for_review: true, automatic_release: ENV.fetch("AUTOMATIC_RELEASE", "0") == "1", force: true, run_precheck_before_submit: true, precheck_include_in_app_purchases: false, reject_if_possible: false }
+    if ENV.fetch("SKIP_SCREENSHOTS_IF_UNCHANGED", "1") == "1" && staged_screenshots_are_already_uploaded?(ENV.fetch("APP_IDENTIFIER"))
+      upload_options[:skip_screenshots] = true
+      UI.important("The exact staged screenshots are already complete in App Store Connect; skipping screenshot upload.")
+    end
     upload_options[:app_previews_path] = ENV["APP_PREVIEWS_PATH"] unless ENV["APP_PREVIEWS_PATH"].to_s.empty?
     upload_to_app_store(**upload_options)
   end

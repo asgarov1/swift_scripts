@@ -120,6 +120,16 @@ Jlingo configurations default to a current copyright year, free pricing (tier
 `0`), sale in every territory, and an offline learning app's no-content/no-feature
 age-rating answers; change these values if they are not truthful for the app.
 
+### App privacy data-use declaration
+
+App Store Connect requires published data-use answers before it will accept a
+version for review. Set `APP_DATA_USAGE_DECLARATION=not-collected` only when the
+app truly collects no data; the submission helper publishes that declaration
+through the configured API key before attempting review submission. For any app
+that collects data, complete and publish its truthful answers in App Store
+Connect first and set `APP_DATA_USAGE_DECLARATION=configured`; the helper then
+verifies that they are already published.
+
 Current Fastlane cannot reliably update App Store pricing or global territory
 availability with an API key: Apple has retired the API relationships that
 Fastlane uses for its `price_tier` option. Before the first submission, set the
@@ -172,6 +182,12 @@ accepts only Apple’s highest required screenshot families: iPhone 6.9-inch
 `2048x2732`), in either orientation. It rejects transparency and more than ten
 images per device family. Apple automatically scales these to smaller device
 sizes when the interface is the same.
+
+On retries, `SKIP_SCREENSHOTS_IF_UNCHANGED=1` (the default) compares MD5
+checksums of the staged screenshots with completed App Store Connect screenshots.
+If every exact image is already there, Fastlane skips the screenshot workflow;
+changed or incomplete media is uploaded normally. Set it to `0` to force the
+normal Fastlane screenshot check.
 
 App Previews are optional. Put up to three videos per device family in
 `previews`, naming iPhone videos with `IPHONE_67` and iPad videos with
