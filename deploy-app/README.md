@@ -106,8 +106,8 @@ https://asgarov1.github.io/Privacy-Policies/<PRIVACY_POLICY_PUBLISHED_PATH-witho
 ```
 
 For example, an app with
-`PRIVACY_POLICY_PUBLISHED_PATH=spanish_a1_privacyPolicy.md` must use
-`PRIVACY_URL=https://asgarov1.github.io/Privacy-Policies/spanish_a1_privacyPolicy`.
+`PRIVACY_POLICY_PUBLISHED_PATH=spanish_a1_privacy_policy.md` must use
+`PRIVACY_URL=https://asgarov1.github.io/Privacy-Policies/spanish_a1_privacy_policy`.
 The policy source must already contain truthful, app-specific data-practice
 statements; the script deliberately does not invent legal claims. A dry run
 validates the configuration but does not publish the policy or contact Apple.

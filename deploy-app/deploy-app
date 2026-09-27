@@ -93,6 +93,21 @@ find_privacy_policies_repo() {
   done
 }
 
+migrate_legacy_privacy_policy_slug() {
+  local project_slug legacy_path current_path legacy_url current_url
+  project_slug="$(basename "$PROJECT_DIR" | tr '-' '_')"
+  legacy_path="${project_slug}_privacyPolicy.md"
+  current_path="${project_slug}_privacy_policy.md"
+  legacy_url="https://asgarov1.github.io/Privacy-Policies/${legacy_path%.md}"
+  current_url="https://asgarov1.github.io/Privacy-Policies/${current_path%.md}"
+  if [[ "${PRIVACY_POLICY_PUBLISHED_PATH:-}" == "$legacy_path" ]]; then
+    PRIVACY_POLICY_PUBLISHED_PATH="$current_path"
+  fi
+  if [[ "${PRIVACY_URL:-}" == "$legacy_url" ]]; then
+    PRIVACY_URL="$current_url"
+  fi
+}
+
 project_value() {
   local key="$1"
   local project_file
@@ -179,7 +194,7 @@ interactive_setup() {
   privacy_source="$(find "$PROJECT_DIR" -maxdepth 1 -type f -iname '*privacy*.md' -print -quit)"
   privacy_source="${privacy_source#"$PROJECT_DIR/"}"
   privacy_repo="$(find_privacy_policies_repo || true)"
-  policy_slug="$(basename "$PROJECT_DIR" | tr '-' '_')_privacyPolicy.md"
+  policy_slug="$(basename "$PROJECT_DIR" | tr '-' '_')_privacy_policy.md"
   privacy_url="https://asgarov1.github.io/Privacy-Policies/${policy_slug%.md}"
   copyright_owner="$(git config --get user.name 2>/dev/null || true)"
   build_number="$(project_value CURRENT_PROJECT_VERSION)"
@@ -240,6 +255,7 @@ if [[ -f "$DEPLOY_ENV" ]]; then
   source "$DEPLOY_ENV"
   set +a
 fi
+migrate_legacy_privacy_policy_slug
 [[ -n "${FASTLANE_SESSION:-}" || -z "$FASTLANE_SESSION_FROM_SECRETS" ]] || FASTLANE_SESSION="$FASTLANE_SESSION_FROM_SECRETS"
 config_needs_answers() {
   local variable
@@ -263,6 +279,7 @@ set -a
 # shellcheck disable=SC1090
 source "$DEPLOY_ENV"
 set +a
+migrate_legacy_privacy_policy_slug
 [[ -n "${FASTLANE_SESSION:-}" || -z "$FASTLANE_SESSION_FROM_SECRETS" ]] || FASTLANE_SESSION="$FASTLANE_SESSION_FROM_SECRETS"
 
 required=(
