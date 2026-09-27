@@ -43,7 +43,11 @@ SUBMISSION_SCRIPT="$SCRIPT_DIR/app-store-submit"
 [[ -x "$SUBMISSION_SCRIPT" ]] || fail "Submission script is not executable: $SUBMISSION_SCRIPT"
 [[ -f "$DEFAULTS_ENV" ]] || fail "Bundled defaults file not found: $DEFAULTS_ENV"
 source "$DEFAULTS_ENV"
-[[ -f "$SECRETS_ENV" ]] && source "$SECRETS_ENV"
+FASTLANE_SESSION_FROM_SECRETS=""
+if [[ -f "$SECRETS_ENV" ]]; then
+  source "$SECRETS_ENV"
+  FASTLANE_SESSION_FROM_SECRETS="${FASTLANE_SESSION:-}"
+fi
 PROJECT_DIR="$(cd "$PROJECT_DIR" 2>/dev/null && pwd)" || fail "Project directory not found: $PROJECT_INPUT"
 
 init=0
@@ -190,7 +194,7 @@ interactive_setup() {
   prompt_value ASC_ISSUER_ID 'App Store Connect issuer ID' "${ASC_ISSUER_ID:-}" 1
   prompt_value ASC_KEY_FILE 'App Store Connect API key .p8 path' "${ASC_KEY_FILE:-}" 1
   prompt_value APPLE_ID 'Apple ID email for initial app creation' "${APPLE_ID:-}" 1
-  prompt_value FASTLANE_SESSION 'Fastlane session' "${FASTLANE_SESSION:-}" 1 1
+  [[ -n "$FASTLANE_SESSION_FROM_SECRETS" ]] || prompt_value FASTLANE_SESSION 'Fastlane session' "${FASTLANE_SESSION:-}" 1 1
   prompt_value REVIEW_CONTACT_FIRST_NAME 'App Review contact first name' "${REVIEW_CONTACT_FIRST_NAME:-}" 1
   prompt_value REVIEW_CONTACT_LAST_NAME 'App Review contact last name' "${REVIEW_CONTACT_LAST_NAME:-}" 1
   prompt_value REVIEW_CONTACT_PHONE 'App Review contact phone' "${REVIEW_CONTACT_PHONE:-}" 1
@@ -232,6 +236,7 @@ if [[ -f "$DEPLOY_ENV" ]]; then
   source "$DEPLOY_ENV"
   set +a
 fi
+[[ -n "${FASTLANE_SESSION:-}" || -z "$FASTLANE_SESSION_FROM_SECRETS" ]] || FASTLANE_SESSION="$FASTLANE_SESSION_FROM_SECRETS"
 config_needs_answers() {
   local variable
   for variable in APP_IDENTIFIER APP_NAME APP_SKU SCHEME XCODEPROJ ASC_KEY_ID ASC_ISSUER_ID ASC_KEY_FILE APPLE_ID FASTLANE_SESSION REVIEW_CONTACT_FIRST_NAME REVIEW_CONTACT_LAST_NAME REVIEW_CONTACT_PHONE REVIEW_CONTACT_EMAIL REVIEW_NOTES PRIMARY_CATEGORY COPYRIGHT SUPPORT_URL PRIVACY_URL RELEASE_NOTES PRIVACY_POLICY_SOURCE PRIVACY_POLICIES_REPO PRIVACY_POLICY_PUBLISHED_PATH CONTENT_RIGHTS_DECLARATION USES_IDFA USES_NON_EXEMPT_ENCRYPTION RUN_TESTS AUTOMATIC_RELEASE BUILD_NUMBER RELEASE_VERSION; do
@@ -250,6 +255,7 @@ set -a
 # shellcheck disable=SC1090
 source "$DEPLOY_ENV"
 set +a
+[[ -n "${FASTLANE_SESSION:-}" || -z "$FASTLANE_SESSION_FROM_SECRETS" ]] || FASTLANE_SESSION="$FASTLANE_SESSION_FROM_SECRETS"
 
 required=(
   APP_IDENTIFIER APP_NAME APP_SKU SCHEME XCODEPROJ ASC_KEY_ID ASC_ISSUER_ID ASC_KEY_FILE
