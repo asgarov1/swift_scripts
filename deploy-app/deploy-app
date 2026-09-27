@@ -276,7 +276,11 @@ case "$AUTOMATIC_RELEASE" in 0|1) ;; *) fail "AUTOMATIC_RELEASE must be 0 or 1" 
 [[ "$BUILD_NUMBER" =~ ^[1-9][0-9]*$ ]] || fail "BUILD_NUMBER must be a positive integer"
 [[ "$SUPPORT_URL" =~ ^https:// ]] || fail "SUPPORT_URL must begin with https://"
 [[ "$PRIVACY_URL" =~ ^https:// ]] || fail "PRIVACY_URL must begin with https://"
-[[ "$CONTENT_RIGHTS_DECLARATION" == "owns" || "$CONTENT_RIGHTS_DECLARATION" == "third-party" ]] || fail "CONTENT_RIGHTS_DECLARATION must be owns or third-party"
+case "$CONTENT_RIGHTS_DECLARATION" in
+  own) CONTENT_RIGHTS_DECLARATION=owns ;;
+  owns|third-party) ;;
+  *) fail "CONTENT_RIGHTS_DECLARATION must be owns or third-party" ;;
+esac
 
 if [[ -n "${LANGUAGE_NAME:-}" || -n "${LANGUAGE_LEVEL:-}" ]]; then
   [[ -n "${LANGUAGE_NAME:-}" && -n "${LANGUAGE_LEVEL:-}" ]] || fail "Set both LANGUAGE_NAME and LANGUAGE_LEVEL, or neither"
