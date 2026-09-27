@@ -6,10 +6,10 @@ TOOLS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 usage() {
   cat <<'EOF'
-Usage: app-store-submit <app-project-path> [--init] [--create-app] [--release] [--no-tests] [--dry-run]
+Usage: app-store-submit <app-project-path> [--create-app] [--release] [--no-tests] [--dry-run]
 
-The app project needs .app-store-submit.env (copy it from this directory's
-app-store-submit.env.example). Store metadata belongs at store-metadata/en-US
+This internal helper is configured by deploy-app, which creates the app
+project's .app-store-submit.env. Store metadata belongs at store-metadata/en-US
 by default; screenshots and previews default to screenshots/{iphone,ipad} and
 previews. No App Store credentials are kept in the project or this script.
 EOF
@@ -22,14 +22,12 @@ esac
 PROJECT_DIR="$(cd "$1" 2>/dev/null && pwd)" || { printf 'Project directory not found: %s\n' "$1" >&2; exit 2; }
 shift
 
-init=0
 create_app=0
 release=0
 dry_run=0
 no_tests=0
 for argument in "$@"; do
   case "$argument" in
-    --init) init=1 ;;
     --create-app) create_app=1 ;;
     --release) release=1 ;;
     --no-tests) no_tests=1 ;;
@@ -40,16 +38,7 @@ for argument in "$@"; do
 done
 
 CONFIG_FILE="$PROJECT_DIR/.app-store-submit.env"
-if [[ "$init" == "1" ]]; then
-  example_file="$PROJECT_DIR/.app-store-submit.env.example"
-  [[ ! -e "$example_file" ]] || { printf 'Already exists: %s\n' "$example_file" >&2; exit 1; }
-  cp "$TOOLS_DIR/app-store-submit.env.example" "$example_file"
-  mkdir -p "$PROJECT_DIR/store-metadata/en-US"
-  printf 'Created %s and %s/store-metadata/en-US. Fill in the configuration and metadata, then run this command again.\n' "$example_file" "$PROJECT_DIR"
-  exit 0
-fi
-
-[[ -f "$CONFIG_FILE" ]] || { printf 'Missing %s. Run: %s %q --init\n' "$CONFIG_FILE" "$0" "$PROJECT_DIR" >&2; exit 1; }
+[[ -f "$CONFIG_FILE" ]] || { printf 'Missing %s. Run deploy-app first: /Users/asgarov1/Projects/swift/scripts/deploy-app/deploy-app %q --init\n' "$CONFIG_FILE" "$PROJECT_DIR" >&2; exit 1; }
 cd "$PROJECT_DIR"
 set -a
 # shellcheck disable=SC1090
