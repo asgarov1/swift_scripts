@@ -6,6 +6,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TEMPLATE="$SCRIPT_DIR/deploy-app.env.example"
 DEFAULTS_ENV="$SCRIPT_DIR/deploy-app.defaults.env"
+SECRETS_ENV="$SCRIPT_DIR/deploy-app.secrets.env"
 
 usage() {
   cat <<'EOF'
@@ -42,6 +43,7 @@ SUBMISSION_SCRIPT="$SCRIPT_DIR/app-store-submit"
 [[ -x "$SUBMISSION_SCRIPT" ]] || fail "Submission script is not executable: $SUBMISSION_SCRIPT"
 [[ -f "$DEFAULTS_ENV" ]] || fail "Bundled defaults file not found: $DEFAULTS_ENV"
 source "$DEFAULTS_ENV"
+[[ -f "$SECRETS_ENV" ]] && source "$SECRETS_ENV"
 PROJECT_DIR="$(cd "$PROJECT_DIR" 2>/dev/null && pwd)" || fail "Project directory not found: $PROJECT_INPUT"
 
 init=0
