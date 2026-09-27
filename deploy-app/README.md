@@ -53,11 +53,12 @@ policy, or contact Apple.
   /path/to/app
 ```
 
-Add `--release` to automatically release after Apple approves it. Add
-`--no-tests` only if the same commit has already passed its tests.
+Add `--release` to automatically release after Apple approves it. The Fastlane
+submission always skips tests, so run and verify the relevant test suite before
+starting deployment.
 
-The bundled `app-store-submit` script is kept alongside `deploy-app`; `--release`
-and `--no-tests` are forwarded to it.
+The bundled `app-store-submit` script is kept alongside `deploy-app`; the
+wrapper forwards `--release` when requested and always forwards `--no-tests`.
 
 ## Resuming safely
 

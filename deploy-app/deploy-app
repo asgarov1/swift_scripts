@@ -10,9 +10,10 @@ SECRETS_ENV="$SCRIPT_DIR/deploy-app.secrets.env"
 
 usage() {
   cat <<'EOF'
-Usage: deploy-app <app-project-path> [--configure] [--init] [--dry-run] [--release] [--no-tests] [--force]
+Usage: deploy-app <app-project-path> [--configure] [--init] [--dry-run] [--release] [--force]
 
-The bundled app-store-submit helper archives, uploads, and submits the app.
+The bundled Fastlane helper archives, uploads, and submits the app. Deployment
+does not run tests; run and verify them before invoking this command.
 
 On the first run, a missing .deploy-app.env is created by showing the resolved
 defaults and asking whether to continue or edit. Choosing Edit walks through
@@ -550,9 +551,8 @@ fi
 
 publish_privacy_policy
 
-command=("$SUBMISSION_SCRIPT" "$PROJECT_DIR" --create-app)
+command=("$SUBMISSION_SCRIPT" "$PROJECT_DIR" --create-app --no-tests)
 [[ "$release" == 1 ]] && command+=(--release)
-[[ "$no_tests" == 1 ]] && command+=(--no-tests)
 "${command[@]}"
 umask 077
 {
