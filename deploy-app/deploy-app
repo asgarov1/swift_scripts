@@ -17,9 +17,11 @@ First run with --init. It creates .deploy-app.env.example in the app project.
 Copy it to .deploy-app.env, supply truthful App Store Connect, legal, review,
 and metadata values, then run this command without --init. The command creates
 the app-store-submit configuration and Fastlane Deliver metadata before calling
-the submission script. A successful deployment is recorded locally and is
-skipped on later runs when RELEASE_VERSION and the configuration are unchanged.
-Use --force to deliberately run it again.
+the submission script. Before an App Store upload, it publishes the configured
+privacy-policy Markdown file to the Privacy-Policies GitHub Pages repository
+and verifies its public URL. A successful deployment is recorded locally and
+is skipped on later runs when RELEASE_VERSION and the configuration are
+unchanged. Use --force to deliberately run it again.
 EOF
 }
 
@@ -77,7 +79,8 @@ required=(
   APP_IDENTIFIER APP_NAME APP_SKU SCHEME XCODEPROJ ASC_KEY_ID ASC_ISSUER_ID ASC_KEY_FILE
   APPLE_ID FASTLANE_SESSION REVIEW_CONTACT_FIRST_NAME REVIEW_CONTACT_LAST_NAME
   REVIEW_CONTACT_PHONE REVIEW_CONTACT_EMAIL PRIMARY_CATEGORY COPYRIGHT
-  SUPPORT_URL PRIVACY_URL DESCRIPTION KEYWORDS SUBTITLE PROMOTIONAL_TEXT RELEASE_NOTES
+  SUPPORT_URL PRIVACY_URL RELEASE_NOTES
+  PRIVACY_POLICY_SOURCE PRIVACY_POLICIES_REPO PRIVACY_POLICY_PUBLISHED_PATH
   CONTENT_RIGHTS_DECLARATION USES_IDFA USES_NON_EXEMPT_ENCRYPTION RELEASE_VERSION
 )
 for variable in "${required[@]}"; do
@@ -90,6 +93,21 @@ case "$USES_NON_EXEMPT_ENCRYPTION" in 0|1) ;; *) fail "USES_NON_EXEMPT_ENCRYPTIO
 [[ "$PRIVACY_URL" =~ ^https:// ]] || fail "PRIVACY_URL must begin with https://"
 [[ "$CONTENT_RIGHTS_DECLARATION" == "owns" || "$CONTENT_RIGHTS_DECLARATION" == "third-party" ]] || fail "CONTENT_RIGHTS_DECLARATION must be owns or third-party"
 
+if [[ -n "${LANGUAGE_NAME:-}" || -n "${LANGUAGE_LEVEL:-}" ]]; then
+  [[ -n "${LANGUAGE_NAME:-}" && -n "${LANGUAGE_LEVEL:-}" ]] || fail "Set both LANGUAGE_NAME and LANGUAGE_LEVEL, or neither"
+  language_lower="$(printf '%s' "$LANGUAGE_NAME" | tr '[:upper:]' '[:lower:]')"
+  DESCRIPTION="${DESCRIPTION:-Jlingo $LANGUAGE_NAME $LANGUAGE_LEVEL is a focused language-learning app for building practical $LANGUAGE_NAME skills. Study vocabulary, verbs, grammar, and useful phrases through short, structured lessons and quizzes. Build a consistent learning habit, review what you have studied, and grow your confidence one lesson at a time. Designed for independent learners working toward the $LANGUAGE_LEVEL level.}"
+  KEYWORDS="${KEYWORDS:-learn $language_lower,$language_lower lessons,$LANGUAGE_LEVEL,vocabulary,grammar,verbs,phrases,language learning}"
+fi
+[[ -n "${DESCRIPTION:-}" ]] || fail "Missing DESCRIPTION in $DEPLOY_ENV (or set LANGUAGE_NAME and LANGUAGE_LEVEL for the Jlingo default)"
+[[ -n "${KEYWORDS:-}" ]] || fail "Missing KEYWORDS in $DEPLOY_ENV (or set LANGUAGE_NAME and LANGUAGE_LEVEL for the Jlingo default)"
+SUBTITLE="${SUBTITLE:-}"
+PROMOTIONAL_TEXT="${PROMOTIONAL_TEXT:-}"
+[[ ${#SUBTITLE} -le 30 ]] || fail "SUBTITLE exceeds App Store Connect's 30-character limit"
+[[ ${#DESCRIPTION} -le 4000 ]] || fail "DESCRIPTION exceeds App Store Connect's 4,000-character limit"
+[[ ${#KEYWORDS} -le 100 ]] || fail "KEYWORDS exceeds App Store Connect's 100-character limit"
+[[ ${#PROMOTIONAL_TEXT} -le 170 ]] || fail "PROMOTIONAL_TEXT exceeds App Store Connect's 170-character limit"
+
 relative_path() {
   case "$1" in
     /*) printf '%s\n' "$1" ;;
@@ -97,18 +115,46 @@ relative_path() {
   esac
 }
 
+publish_privacy_policy() {
+  local source policy_repo published_path expected_url source_name
+  source="$(relative_path "$PRIVACY_POLICY_SOURCE")"
+  policy_repo="$PRIVACY_POLICIES_REPO"
+  [[ "$policy_repo" = /* ]] || policy_repo="$(relative_path "$policy_repo")"
+  published_path="$PRIVACY_POLICY_PUBLISHED_PATH"
+  [[ "$published_path" != /* && "$published_path" != *".."* ]] || fail "PRIVACY_POLICY_PUBLISHED_PATH must be a repository-relative path without .."
+  [[ "$published_path" == *.md ]] || fail "PRIVACY_POLICY_PUBLISHED_PATH must name a Markdown file ending in .md"
+  [[ -f "$source" ]] || fail "Privacy policy source not found: $source"
+  [[ -d "$policy_repo/.git" ]] || fail "Privacy Policies repository not found: $policy_repo"
+  expected_url="https://asgarov1.github.io/Privacy-Policies/${published_path%.md}"
+  [[ "$PRIVACY_URL" == "$expected_url" ]] || fail "PRIVACY_URL must be $expected_url for PRIVACY_POLICY_PUBLISHED_PATH=$published_path"
+  source_name="${source##*/}"
+  [[ "$source_name" == *.md ]] || fail "PRIVACY_POLICY_SOURCE must be a Markdown file: $source"
+  git -C "$policy_repo" diff --quiet -- "$published_path" || fail "Privacy policy target has uncommitted changes: $policy_repo/$published_path"
+  git -C "$policy_repo" diff --cached --quiet -- "$published_path" || fail "Privacy policy target has staged changes: $policy_repo/$published_path"
+  mkdir -p "$(dirname "$policy_repo/$published_path")"
+  if ! cmp -s "$source" "$policy_repo/$published_path"; then
+    cp "$source" "$policy_repo/$published_path"
+    git -C "$policy_repo" add -- "$published_path"
+    git -C "$policy_repo" commit -m "Publish privacy policy for $APP_NAME" -- "$published_path"
+    branch="$(git -C "$policy_repo" symbolic-ref --quiet --short HEAD)" || fail "Privacy Policies repository must be on a branch before publication"
+    git -C "$policy_repo" push origin "$branch"
+  fi
+  curl --fail --silent --show-error --location --retry 6 --retry-delay 2 "$PRIVACY_URL" >/dev/null || fail "Privacy policy is not publicly reachable after publication: $PRIVACY_URL"
+  printf 'Privacy policy is published and reachable: %s\n' "$PRIVACY_URL"
+}
+
 metadata_dir="$PROJECT_DIR/store-metadata/en-US"
 mkdir -p "$metadata_dir"
 write_metadata() { printf '%s\n' "$2" > "$metadata_dir/$1"; }
 write_metadata name.txt "$APP_NAME"
-write_metadata subtitle.txt "$SUBTITLE"
 write_metadata description.txt "$DESCRIPTION"
 write_metadata keywords.txt "$KEYWORDS"
-write_metadata promotional_text.txt "$PROMOTIONAL_TEXT"
 write_metadata release_notes.txt "$RELEASE_NOTES"
 write_metadata support_url.txt "$SUPPORT_URL"
 write_metadata privacy_url.txt "$PRIVACY_URL"
 write_metadata copyright.txt "$COPYRIGHT"
+[[ -n "${SUBTITLE:-}" ]] && write_metadata subtitle.txt "$SUBTITLE" || rm -f "$metadata_dir/subtitle.txt"
+[[ -n "${PROMOTIONAL_TEXT:-}" ]] && write_metadata promotional_text.txt "$PROMOTIONAL_TEXT" || rm -f "$metadata_dir/promotional_text.txt"
 
 # The legacy submit helper consumes this file. %q keeps spaces and punctuation
 # source-safe without exposing credentials in command arguments.
@@ -132,6 +178,9 @@ write_env CONTENT_RIGHTS_DECLARATION "$CONTENT_RIGHTS_DECLARATION"
 write_env RELEASE_VERSION "$RELEASE_VERSION"
 
 STATE_FILE="$PROJECT_DIR/.deploy-app-state"
+privacy_policy_source="$(relative_path "$PRIVACY_POLICY_SOURCE")"
+[[ -f "$privacy_policy_source" ]] || fail "Privacy policy source not found: $privacy_policy_source"
+PRIVACY_POLICY_FINGERPRINT="$(shasum -a 256 "$privacy_policy_source" | awk '{print $1}')"
 media_files=()
 for source_dir in ${SCREENSHOT_PATHS:-screenshots/iphone screenshots/ipad}; do
   source_dir="$(relative_path "$source_dir")"
@@ -148,13 +197,15 @@ if [[ -d "$preview_source" ]]; then
 fi
 
 MEDIA_FINGERPRINT="$({
-  for media_file in "${media_files[@]}"; do
+  for media_file in "${media_files[@]:-}"; do
+    [[ -n "$media_file" ]] || continue
     printf '%s\n' "${media_file#"$PROJECT_DIR/"}"
     shasum -a 256 "$media_file"
   done
 } | LC_ALL=C sort | shasum -a 256 | awk '{print $1}')"
 CONFIG_FINGERPRINT="$({
   shasum -a 256 "$DEPLOY_ENV"
+  printf '%s\n' "$PRIVACY_POLICY_FINGERPRINT"
   printf '%s\n' "$MEDIA_FINGERPRINT"
 } | shasum -a 256 | awk '{print $1}')"
 DEPLOYMENT_ID="$APP_IDENTIFIER:$RELEASE_VERSION"
@@ -166,7 +217,7 @@ if [[ -f "$STATE_FILE" ]]; then
 fi
 
 if [[ "$dry_run" == 1 ]]; then
-  printf 'Validated deployment configuration and generated metadata in %s. No Apple service was contacted.\n' "$PROJECT_DIR"
+  printf 'Validated deployment configuration and generated metadata in %s. Privacy-policy publication and Apple services were not contacted.\n' "$PROJECT_DIR"
   exit 0
 fi
 
@@ -174,6 +225,8 @@ if [[ "$force" != 1 && "$previous_deployment_id" == "$DEPLOYMENT_ID" && "$previo
   printf 'Deployment %s already completed with this configuration; skipping. Use --force to run it again.\n' "$DEPLOYMENT_ID"
   exit 0
 fi
+
+publish_privacy_policy
 
 command=("$SUBMISSION_SCRIPT" "$PROJECT_DIR" --create-app)
 [[ "$release" == 1 ]] && command+=(--release)

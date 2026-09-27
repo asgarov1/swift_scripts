@@ -77,6 +77,35 @@ still request account-holder actions such as agreements, banking/tax setup,
 pricing availability, age rating answers, or a review response; those are
 account-specific and cannot be truthfully automated from a repository.
 
+## Privacy policy publication
+
+Before it contacts App Store Connect, `deploy-app` copies
+`PRIVACY_POLICY_SOURCE` into the checkout named by `PRIVACY_POLICIES_REPO` at
+`PRIVACY_POLICY_PUBLISHED_PATH`, commits only that file, pushes it to `origin`,
+and checks that `PRIVACY_URL` can be reached. For the shared policy repository,
+the URL must exactly be:
+
+```text
+https://asgarov1.github.io/Privacy-Policies/<PRIVACY_POLICY_PUBLISHED_PATH-without-.md>
+```
+
+For example, an app with
+`PRIVACY_POLICY_PUBLISHED_PATH=spanish_a1_privacyPolicy.md` must use
+`PRIVACY_URL=https://asgarov1.github.io/Privacy-Policies/spanish_a1_privacyPolicy`.
+The policy source must already contain truthful, app-specific data-practice
+statements; the script deliberately does not invent legal claims. A dry run
+validates the configuration but does not publish the policy or contact Apple.
+
+## Language-app descriptions and keywords
+
+For Jlingo language apps, set `LANGUAGE_NAME` and `LANGUAGE_LEVEL` in
+`.deploy-app.env` for the app being submitted, for example `Spanish` and `A1`.
+Leaving `DESCRIPTION` and `KEYWORDS` empty then creates a tailored default
+description and keyword list for that language and level. Set either field when
+you need custom App Store copy; non-language apps must set both fields
+explicitly. The wrapper enforces Apple's current length limits: 4,000 characters
+for descriptions and 100 characters for keywords.
+
 ## Screenshots and App Previews
 
 Place screenshots in `screenshots/iphone` and `screenshots/ipad`. The script
