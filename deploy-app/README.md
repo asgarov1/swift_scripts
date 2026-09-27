@@ -76,3 +76,20 @@ requires explicit content-rights, IDFA, and encryption declarations. Apple may
 still request account-holder actions such as agreements, banking/tax setup,
 pricing availability, age rating answers, or a review response; those are
 account-specific and cannot be truthfully automated from a repository.
+
+## Screenshots and App Previews
+
+Place screenshots in `screenshots/iphone` and `screenshots/ipad`. The script
+accepts only Apple’s highest required screenshot families: iPhone 6.9-inch
+(`1260x2736`, `1290x2796`, or `1320x2868`) and iPad 13-inch (`2064x2752` or
+`2048x2732`), in either orientation. It rejects transparency and more than ten
+images per device family. Apple automatically scales these to smaller device
+sizes when the interface is the same.
+
+App Previews are optional. Put up to three videos per device family in
+`previews`, naming iPhone videos with `IPHONE_67` and iPad videos with
+`IPAD_PRO_3GEN_129`; for example, `onboarding_IPHONE_67.mp4` and
+`onboarding_IPAD_PRO_3GEN_129.mp4`. The script validates Apple’s high-family
+preview exports (886×1920 for iPhone and 1200×1600 for iPad, either
+orientation), duration, frame rate, codec, extension, and 500 MB size limit,
+then passes the localized previews to Fastlane’s `app_previews_path` upload.

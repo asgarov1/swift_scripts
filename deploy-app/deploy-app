@@ -90,6 +90,13 @@ case "$USES_NON_EXEMPT_ENCRYPTION" in 0|1) ;; *) fail "USES_NON_EXEMPT_ENCRYPTIO
 [[ "$PRIVACY_URL" =~ ^https:// ]] || fail "PRIVACY_URL must begin with https://"
 [[ "$CONTENT_RIGHTS_DECLARATION" == "owns" || "$CONTENT_RIGHTS_DECLARATION" == "third-party" ]] || fail "CONTENT_RIGHTS_DECLARATION must be owns or third-party"
 
+relative_path() {
+  case "$1" in
+    /*) printf '%s\n' "$1" ;;
+    *) printf '%s/%s\n' "$PROJECT_DIR" "$1" ;;
+  esac
+}
+
 metadata_dir="$PROJECT_DIR/store-metadata/en-US"
 mkdir -p "$metadata_dir"
 write_metadata() { printf '%s\n' "$2" > "$metadata_dir/$1"; }
@@ -125,7 +132,31 @@ write_env CONTENT_RIGHTS_DECLARATION "$CONTENT_RIGHTS_DECLARATION"
 write_env RELEASE_VERSION "$RELEASE_VERSION"
 
 STATE_FILE="$PROJECT_DIR/.deploy-app-state"
-CONFIG_FINGERPRINT="$(shasum -a 256 "$DEPLOY_ENV" | awk '{print $1}')"
+media_files=()
+for source_dir in ${SCREENSHOT_PATHS:-screenshots/iphone screenshots/ipad}; do
+  source_dir="$(relative_path "$source_dir")"
+  [[ -d "$source_dir" ]] || continue
+  while IFS= read -r -d '' media_file; do
+    media_files+=("$media_file")
+  done < <(find "$source_dir" -type f \( -iname '*.png' -o -iname '*.jpg' -o -iname '*.jpeg' \) -print0)
+done
+preview_source="$(relative_path "${PREVIEW_PATH:-previews}")"
+if [[ -d "$preview_source" ]]; then
+  while IFS= read -r -d '' media_file; do
+    media_files+=("$media_file")
+  done < <(find "$preview_source" -maxdepth 1 -type f \( -iname '*.mp4' -o -iname '*.mov' -o -iname '*.m4v' \) -print0)
+fi
+
+MEDIA_FINGERPRINT="$({
+  for media_file in "${media_files[@]}"; do
+    printf '%s\n' "${media_file#"$PROJECT_DIR/"}"
+    shasum -a 256 "$media_file"
+  done
+} | LC_ALL=C sort | shasum -a 256 | awk '{print $1}')"
+CONFIG_FINGERPRINT="$({
+  shasum -a 256 "$DEPLOY_ENV"
+  printf '%s\n' "$MEDIA_FINGERPRINT"
+} | shasum -a 256 | awk '{print $1}')"
 DEPLOYMENT_ID="$APP_IDENTIFIER:$RELEASE_VERSION"
 previous_deployment_id=""
 previous_fingerprint=""

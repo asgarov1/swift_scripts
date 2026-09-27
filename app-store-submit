@@ -73,25 +73,89 @@ export METADATA_PATH ASC_KEY_FILE
 [[ -d "$METADATA_PATH/en-US" ]] || { printf 'Metadata directory not found: %s/en-US\n' "$METADATA_PATH" >&2; exit 1; }
 
 ASSET_DIR="$(mktemp -d "${TMPDIR:-/tmp}/app-store-assets.XXXXXX")"
+PREVIEW_ASSET_DIR="$(mktemp -d "${TMPDIR:-/tmp}/app-store-previews.XXXXXX")"
 FASTFILE_DIR="$(mktemp -d "${TMPDIR:-/tmp}/app-store-fastlane.XXXXXX")"
-cleanup() { rm -rf "$ASSET_DIR" "$FASTFILE_DIR"; }
+cleanup() { rm -rf "$ASSET_DIR" "$PREVIEW_ASSET_DIR" "$FASTFILE_DIR"; }
 trap cleanup EXIT
 mkdir -p "$ASSET_DIR/en-US"
+mkdir -p "$PREVIEW_ASSET_DIR/en-US"
 
+screenshot_dimensions() {
+  local width height
+  width="$(sips -g pixelWidth "$1" 2>/dev/null | awk '/pixelWidth:/{print $2}')"
+  height="$(sips -g pixelHeight "$1" 2>/dev/null | awk '/pixelHeight:/{print $2}')"
+  [[ -n "$width" && -n "$height" ]] || { printf 'Could not read screenshot dimensions: %s\n' "$1" >&2; exit 1; }
+  printf '%sx%s\n' "$width" "$height"
+}
+
+valid_screenshot_dimensions() {
+  local device="$1" dimensions="$2"
+  case "$device:$dimensions" in
+    # Highest App Store Connect screenshot families: iPhone 6.9-inch and iPad 13-inch.
+    iphone:1260x2736|iphone:2736x1260|iphone:1290x2796|iphone:2796x1290|iphone:1320x2868|iphone:2868x1320|ipad:2064x2752|ipad:2752x2064|ipad:2048x2732|ipad:2732x2048) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+screenshot_count=0
+iphone_screenshot_count=0
+ipad_screenshot_count=0
 for source_dir in ${SCREENSHOT_PATHS:-screenshots/iphone screenshots/ipad}; do
   source_dir="$(relative_path "$source_dir")"
   [[ -d "$source_dir" ]] || continue
+  device_family="$(basename "$source_dir")"
+  case "$device_family" in
+    iphone|ipad) ;;
+    *) printf 'Screenshot directory must end in iphone or ipad: %s\n' "$source_dir" >&2; exit 1 ;;
+  esac
   for screenshot in "$source_dir"/*.png "$source_dir"/*.jpg "$source_dir"/*.jpeg; do
     [[ -f "$screenshot" ]] || continue
-    cp "$screenshot" "$ASSET_DIR/en-US/$(basename "$(dirname "$screenshot")")-$(basename "$screenshot")"
+    dimensions="$(screenshot_dimensions "$screenshot")"
+    valid_screenshot_dimensions "$device_family" "$dimensions" || { printf 'Screenshot must use the highest %s App Store size; got %s: %s\n' "$device_family" "$dimensions" "$screenshot" >&2; exit 1; }
+    [[ "$(sips -g hasAlpha "$screenshot" 2>/dev/null | awk '/hasAlpha:/{print $2}')" != "yes" ]] || { printf 'Screenshots cannot contain transparency: %s\n' "$screenshot" >&2; exit 1; }
+    screenshot_count=$((screenshot_count + 1))
+    if [[ "$device_family" == "iphone" ]]; then
+      iphone_screenshot_count=$((iphone_screenshot_count + 1))
+    else
+      ipad_screenshot_count=$((ipad_screenshot_count + 1))
+    fi
+    cp "$screenshot" "$ASSET_DIR/en-US/${device_family}-$(printf '%02d' "$screenshot_count")-$(basename "$screenshot")"
   done
 done
-for preview in "$PREVIEW_PATH"/*.mp4; do
+[[ "$screenshot_count" -gt 0 ]] || { printf 'No screenshots found. Check SCREENSHOT_PATHS.\n' >&2; exit 1; }
+[[ "$iphone_screenshot_count" -le 10 && "$ipad_screenshot_count" -le 10 ]] || { printf 'App Store Connect permits at most 10 screenshots per device family.\n' >&2; exit 1; }
+
+preview_count=0
+iphone_preview_count=0
+ipad_preview_count=0
+for preview in "$PREVIEW_PATH"/*.mp4 "$PREVIEW_PATH"/*.mov "$PREVIEW_PATH"/*.m4v; do
   [[ -f "$preview" ]] || continue
-  cp "$preview" "$ASSET_DIR/en-US/$(basename "$preview" .mp4)-preview.mp4"
+  [[ -x "$(command -v ffprobe)" ]] || { printf 'ffprobe is required to validate App Preview videos.\n' >&2; exit 1; }
+  preview_name="$(basename "$preview")"
+  preview_name_lower="$(printf '%s' "$preview_name" | tr '[:upper:]' '[:lower:]')"
+  case "$preview_name_lower" in
+    *iphone_67*) preview_family=iphone; expected_preview_dimensions='886x1920|1920x886'; iphone_preview_count=$((iphone_preview_count + 1)) ;;
+    *ipad_pro_3gen_129*) preview_family=ipad; expected_preview_dimensions='1200x1600|1600x1200'; ipad_preview_count=$((ipad_preview_count + 1)) ;;
+    *) printf 'App Preview filename must include IPHONE_67 or IPAD_PRO_3GEN_129: %s\n' "$preview" >&2; exit 1 ;;
+  esac
+  preview_width="$(ffprobe -v error -select_streams v:0 -show_entries stream=width -of default=noprint_wrappers=1:nokey=1 "$preview")"
+  preview_height="$(ffprobe -v error -select_streams v:0 -show_entries stream=height -of default=noprint_wrappers=1:nokey=1 "$preview")"
+  preview_duration="$(ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "$preview")"
+  preview_fps="$(ffprobe -v error -select_streams v:0 -show_entries stream=r_frame_rate -of default=noprint_wrappers=1:nokey=1 "$preview")"
+  preview_codec="$(ffprobe -v error -select_streams v:0 -show_entries stream=codec_name -of default=noprint_wrappers=1:nokey=1 "$preview")"
+  preview_dimensions="${preview_width}x${preview_height}"
+  [[ "$preview_dimensions" =~ ^($expected_preview_dimensions)$ ]] || { printf 'App Preview dimensions do not match the highest %s family: %s\n' "$preview_family" "$preview" >&2; exit 1; }
+  awk -v duration="$preview_duration" 'BEGIN { exit !(duration >= 15 && duration <= 30) }' || { printf 'App Preview must be 15-30 seconds: %s\n' "$preview" >&2; exit 1; }
+  awk -v fps="$preview_fps" 'BEGIN { split(fps, rate, "/"); exit !(rate[2] > 0 && rate[1] / rate[2] <= 30) }' || { printf 'App Preview frame rate must not exceed 30 fps: %s\n' "$preview" >&2; exit 1; }
+  [[ "$preview_codec" == "h264" || "$preview_codec" == "prores" ]] || { printf 'App Preview must use H.264 or ProRes: %s\n' "$preview" >&2; exit 1; }
+  [[ "$preview_codec" != "prores" || "$preview_name_lower" == *.mov ]] || { printf 'ProRes App Previews must use a .mov extension: %s\n' "$preview" >&2; exit 1; }
+  [[ "$(stat -f %z "$preview")" -le 524288000 ]] || { printf 'App Preview exceeds 500 MB: %s\n' "$preview" >&2; exit 1; }
+  preview_count=$((preview_count + 1))
+  cp "$preview" "$PREVIEW_ASSET_DIR/en-US/$preview_name"
 done
-compgen -G "$ASSET_DIR/en-US/*.png" >/dev/null || { printf 'No screenshots found. Check SCREENSHOT_PATHS.\n' >&2; exit 1; }
+[[ "$iphone_preview_count" -le 3 && "$ipad_preview_count" -le 3 ]] || { printf 'App Store Connect permits at most 3 App Previews per device family.\n' >&2; exit 1; }
 export SCREENSHOTS_PATH="$ASSET_DIR"
+[[ "$preview_count" -gt 0 ]] && export APP_PREVIEWS_PATH="$PREVIEW_ASSET_DIR"
 export AUTOMATIC_RELEASE="$release"
 [[ "$no_tests" == "1" ]] && export RUN_TESTS=0
 
@@ -122,7 +186,9 @@ platform :ios do
     run_tests(project: ENV.fetch("XCODEPROJ"), scheme: ENV.fetch("SCHEME"), device: ENV.fetch("TEST_DEVICE", "iPhone 17 Pro Max"), clean: true) if ENV.fetch("RUN_TESTS", "1") == "1"
     increment_build_number(xcodeproj: ENV.fetch("XCODEPROJ")) unless ENV.fetch("SKIP_BUILD_NUMBER_BUMP", "0") == "1"
     build_app(project: ENV.fetch("XCODEPROJ"), scheme: ENV.fetch("SCHEME"), clean: true, export_method: "app-store", xcargs: "-allowProvisioningUpdates")
-    upload_to_app_store(api_key: api_key, app_identifier: ENV.fetch("APP_IDENTIFIER"), metadata_path: ENV.fetch("METADATA_PATH"), screenshots_path: ENV.fetch("SCREENSHOTS_PATH"), primary_category: ENV.fetch("PRIMARY_CATEGORY", "Education"), app_review_information: { first_name: ENV.fetch("REVIEW_CONTACT_FIRST_NAME"), last_name: ENV.fetch("REVIEW_CONTACT_LAST_NAME"), phone_number: ENV.fetch("REVIEW_CONTACT_PHONE"), email_address: ENV.fetch("REVIEW_CONTACT_EMAIL"), notes: ENV.fetch("REVIEW_NOTES", "No sign-in is required to use the app.") }, submit_for_review: true, automatic_release: ENV.fetch("AUTOMATIC_RELEASE", "0") == "1", force: true, run_precheck_before_submit: true, precheck_include_in_app_purchases: false, reject_if_possible: true)
+    upload_options = { api_key: api_key, app_identifier: ENV.fetch("APP_IDENTIFIER"), metadata_path: ENV.fetch("METADATA_PATH"), screenshots_path: ENV.fetch("SCREENSHOTS_PATH"), primary_category: ENV.fetch("PRIMARY_CATEGORY", "Education"), app_review_information: { first_name: ENV.fetch("REVIEW_CONTACT_FIRST_NAME"), last_name: ENV.fetch("REVIEW_CONTACT_LAST_NAME"), phone_number: ENV.fetch("REVIEW_CONTACT_PHONE"), email_address: ENV.fetch("REVIEW_CONTACT_EMAIL"), notes: ENV.fetch("REVIEW_NOTES", "No sign-in is required to use the app.") }, submit_for_review: true, automatic_release: ENV.fetch("AUTOMATIC_RELEASE", "0") == "1", force: true, run_precheck_before_submit: true, precheck_include_in_app_purchases: false, reject_if_possible: true }
+    upload_options[:app_previews_path] = ENV["APP_PREVIEWS_PATH"] unless ENV["APP_PREVIEWS_PATH"].to_s.empty?
+    upload_to_app_store(**upload_options)
   end
 end
 RUBY
