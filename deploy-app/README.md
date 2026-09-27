@@ -114,11 +114,13 @@ Connect record. Add `--yes` only for a non-interactive invocation.
 
 The wrapper validates and writes the fields Fastlane can upload: name, subtitle,
 description, keywords, promotional text, release notes, support URL, privacy
-URL, copyright, review contact, category, and build identifiers. It also
-requires explicit content-rights, IDFA, and encryption declarations. Apple may
-still request account-holder actions such as agreements, banking/tax setup,
-pricing availability, age rating answers, or a review response; those are
-account-specific and cannot be truthfully automated from a repository.
+URL, copyright, review contact, category, pricing, territory availability, and
+build identifiers. It submits the configured content-rights, IDFA, encryption,
+and age-rating declarations. New Jlingo configurations default to a current
+copyright year, free pricing (tier `0`), sale in every territory, and an offline
+learning app's no-content/no-feature age-rating answers; change these values if
+they are not truthful for the app. Apple may still request account-holder
+actions such as agreements, banking/tax setup, or a review response.
 
 ## Privacy policy publication
 
