@@ -569,6 +569,11 @@ stage_json_metadata_localizations() {
         rm -f "$locale_dir/$metadata_file"
       fi
     done
+
+    # App Store Connect requires a support URL for each localized app-info
+    # record. Use the configured default unless a future localization-specific
+    # support URL is introduced.
+    printf '%s\n' "$SUPPORT_URL" > "$locale_dir/support_url.txt"
   done < <(jq -r 'keys[]' "$localizations_file")
   printf 'Staged localized App Store metadata from %s.\n' "$localizations_file"
 }
