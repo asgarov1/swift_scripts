@@ -145,8 +145,10 @@ description, keywords, promotional text, release notes, support URL, privacy
 URL, copyright, review contact, category, and build identifiers. It submits the
 configured content-rights, IDFA, encryption, and age-rating declarations. New
 Jlingo configurations default to a current copyright year, free pricing (tier
-`0`), sale in every territory, and an offline learning app's no-content/no-feature
-age-rating answers; change these values if they are not truthful for the app.
+`0`), sale in every territory, the promotional text “No account, no registration,
+fully offline app - ideal for learning on the go!”, and an offline learning app's
+no-content/no-feature age-rating answers; change these values if they are not
+truthful for the app.
 
 ### App privacy data-use declaration
 

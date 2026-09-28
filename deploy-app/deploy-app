@@ -359,6 +359,9 @@ if [[ -f "$DEPLOY_ENV" ]]; then
   set +a
 fi
 migrate_legacy_privacy_policy_slug
+# Promotional text is always supplied to Fastlane. Projects may replace this
+# shared message with app-specific copy, but an empty legacy value uses it.
+: "${PROMOTIONAL_TEXT:=No account, no registration, fully offline app - ideal for learning on the go!}"
 unset APPLE_ID FASTLANE_SESSION FASTLANE_PASSWORD FASTLANE_USER
 config_needs_answers() {
   local variable
@@ -387,6 +390,7 @@ set -a
 source "$DEPLOY_ENV"
 set +a
 migrate_legacy_privacy_policy_slug
+: "${PROMOTIONAL_TEXT:=No account, no registration, fully offline app - ideal for learning on the go!}"
 unset APPLE_ID FASTLANE_SESSION FASTLANE_PASSWORD FASTLANE_USER
 
 required=(
@@ -448,7 +452,7 @@ fi
 [[ -n "${DESCRIPTION:-}" ]] || fail "Missing DESCRIPTION in $DEPLOY_ENV (or set LANGUAGE_NAME and LANGUAGE_LEVEL for the Jlingo default)"
 [[ -n "${KEYWORDS:-}" ]] || fail "Missing KEYWORDS in $DEPLOY_ENV (or set LANGUAGE_NAME and LANGUAGE_LEVEL for the Jlingo default)"
 SUBTITLE="${SUBTITLE:-}"
-PROMOTIONAL_TEXT="${PROMOTIONAL_TEXT:-}"
+PROMOTIONAL_TEXT="${PROMOTIONAL_TEXT:-No account, no registration, fully offline app - ideal for learning on the go!}"
 [[ ${#SUBTITLE} -le 30 ]] || fail "SUBTITLE exceeds App Store Connect's 30-character limit"
 [[ ${#DESCRIPTION} -le 4000 ]] || fail "DESCRIPTION exceeds App Store Connect's 4,000-character limit"
 [[ ${#KEYWORDS} -le 100 ]] || fail "KEYWORDS exceeds App Store Connect's 100-character limit"
