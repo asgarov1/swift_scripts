@@ -472,9 +472,8 @@ platform :ios do
         subscription = asc_request(api_key, :post, "/v1/subscriptions", body: {
           data: {
             type: "subscriptions",
-            # `availableInAllTerritories` is valid for in-app purchases, but is
-            # not a subscriptions API attribute. Subscription availability is
-            # configured separately through subscriptionPlanAvailabilities.
+            # Subscription availability is configured separately through
+            # subscriptionPlanAvailabilities, not as a creation attribute.
             attributes: { name: ENV.fetch(name_key), productId: product_id, subscriptionPeriod: period, reviewNote: "Unlocks the complete course." },
             relationships: { group: { data: { type: "subscriptionGroups", id: group.fetch("id") } } }
           }
@@ -494,7 +493,9 @@ platform :ios do
       lifetime = asc_request(api_key, :post, "/v2/inAppPurchases", body: {
         data: {
           type: "inAppPurchases",
-          attributes: { name: ENV.fetch("IAP_LIFETIME_REFERENCE_NAME"), productId: lifetime_product_id, inAppPurchaseType: "NON_CONSUMABLE", reviewNote: "Unlocks lifetime access to the complete course.", availableInAllTerritories: true },
+          # The v2 creation API does not accept availableInAllTerritories.
+          # Territory availability is a separate inAppPurchaseAvailabilities resource.
+          attributes: { name: ENV.fetch("IAP_LIFETIME_REFERENCE_NAME"), productId: lifetime_product_id, inAppPurchaseType: "NON_CONSUMABLE", reviewNote: "Unlocks lifetime access to the complete course." },
           relationships: { app: { data: { type: "apps", id: app.id } } }
         }
       }).fetch("data")

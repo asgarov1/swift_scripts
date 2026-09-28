@@ -235,7 +235,7 @@ class FastfileTest < Minitest::Test
     ENV['METADATA_PATH'] = previous
   end
 
-  def test_default_products_list_lifetime_iaps_through_the_v1_app_collection
+  def test_default_products_create_lifetime_with_valid_attributes_and_reuse_it_on_retry
     environment = {
       'IAP_CREATE_DEFAULTS' => '1',
       'METADATA_PATH' => Dir.mktmpdir,
@@ -253,6 +253,7 @@ class FastfileTest < Minitest::Test
     previous = environment.keys.to_h { |key| [key, ENV[key]] }
     ENV.update(environment)
 
+    lifetime = nil
     harness = FastfileHarness.new do |method, path, body|
       case [method, path]
       when [:get, '/v1/apps/app/subscriptionGroups?limit=200']
@@ -266,16 +267,24 @@ class FastfileTest < Minitest::Test
            [:get, '/v1/subscriptions/quarterly/prices?filter[territory]=USA&filter[planType]=UPFRONT&limit=200']
         collection([{ 'id' => 'existing-price' }])
       when [:get, '/v1/apps/app/inAppPurchasesV2?limit=200']
-        collection
+        collection(lifetime ? [lifetime] : [])
       when [:post, '/v2/inAppPurchases']
-        assert_equal 'product.lifetime', body.dig(:data, :attributes, :productId)
-        { 'data' => { 'id' => 'lifetime', 'attributes' => { 'productId' => 'product.lifetime' } } }
+        assert_equal 'inAppPurchases', body.dig(:data, :type)
+        assert_equal({
+          name: 'Lifetime', productId: 'product.lifetime',
+          inAppPurchaseType: 'NON_CONSUMABLE',
+          reviewNote: 'Unlocks lifetime access to the complete course.'
+        }, body.dig(:data, :attributes))
+        assert_equal({ app: { data: { type: 'apps', id: 'app' } } }, body.dig(:data, :relationships))
+        lifetime = { 'id' => 'lifetime', 'attributes' => { 'productId' => 'product.lifetime' } }
+        { 'data' => lifetime }
       else
         flunk "Unexpected request: #{method} #{path}"
       end
     end
 
-    harness.ensure_default_products(nil, Struct.new(:id).new('app'))
+    2.times { harness.ensure_default_products(nil, Struct.new(:id).new('app')) }
+    assert_equal 1, harness.requests.count { |method, path, _| method == :post && path == '/v2/inAppPurchases' }
     assert_includes harness.requests.map { |method, path, _| [method, path] }, [:get, '/v1/apps/app/inAppPurchasesV2?limit=200']
   ensure
     previous&.each { |key, value| ENV[key] = value }
