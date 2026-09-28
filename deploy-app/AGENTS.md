@@ -47,6 +47,21 @@ Keep configuration staging deterministic so repeated calls do not create
 unrelated diffs. Prefer API-key authentication and preserve the existing rule
 that precheck never falls back to Apple ID web sessions.
 
+## Follow Apple's API schema
+
+Before adding or changing an App Store Connect API request, consult Apple's
+current official schema for that exact endpoint and request body. Verify the
+complete payload: required and allowed fields, attributes, relationship names,
+resource `type` values, and inline resource IDs. Do not infer resource types
+from endpoint versions or relationship names; for example, `inAppPurchaseV2`
+uses the resource type `inAppPurchases`, not `inAppPurchasesV2`.
+
+Treat the endpoint's schema as authoritative when prose examples disagree.
+When fixing an API validation error, review the entire affected payload against
+the schema and update relevant regression tests to cover the API contract,
+rather than only the field identified by the first error. Local mocks and dry
+runs do not prove that Apple will accept a request.
+
 ## Verification
 
 After changing these scripts, run shell syntax checks, validate the generated
