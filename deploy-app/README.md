@@ -55,9 +55,10 @@ policy, or contact Apple.
   /path/to/app
 ```
 
-The default run performs Fastlane precheck and uploads the staged App Store
-metadata localizations from `store-metadata/<locale>/`. It does not archive or
-upload a build, or submit the app for review. Fastlane needs an editable App
+The default run performs Fastlane precheck, creates or reuses the configured
+in-app purchases, and uploads the staged App Store metadata localizations from
+`store-metadata/<locale>/`. It does not archive or upload a build, or submit
+the app for review. Fastlane needs an editable App
 Store version to update version-localized fields, so it may create or update
 that draft version's metadata. The default flow always skips tests; run and
 verify the relevant test suite before starting a submission.
@@ -90,8 +91,8 @@ wrapper always forwards `--no-tests`.
 
 ### Default in-app purchases
 
-When `--create-app` runs, the deployment helper also creates (or reuses) a
-`Premium Access` subscription group and these products by default:
+During precheck (and when `--create-app` runs), the deployment helper creates
+(or reuses) a `Premium Access` subscription group and these products by default:
 
 | Product | Default product ID | US price |
 | --- | --- | --- |

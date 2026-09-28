@@ -699,7 +699,7 @@ fi
 
 if [[ "$submit" != 1 ]]; then
   "$SUBMISSION_SCRIPT" "$PROJECT_DIR" --no-tests
-  printf 'App Store precheck completed and staged metadata localizations were uploaded. No build was uploaded and no review submission was created.\n'
+  printf 'App Store precheck completed, configured in-app purchases were created or reused, and staged metadata localizations were uploaded. No build was uploaded and no review submission was created.\n'
   exit 0
 fi
 

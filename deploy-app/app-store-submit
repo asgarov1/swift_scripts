@@ -358,11 +358,18 @@ platform :ios do
 
   lane :check do
     api_key = app_store_api_key
+    app_identifier = ENV.fetch("APP_IDENTIFIER")
+    app = Spaceship::ConnectAPI::App.find(app_identifier)
+    UI.user_error!("App Store record does not exist for #{app_identifier}; use --submit to create it before running precheck.") unless app
+    # Precheck is also the usual first deployment step. Create the configured
+    # products before it runs so the subscription setup is not deferred until
+    # a build is uploaded with --submit. The helper only creates missing items.
+    ensure_default_products(api_key, app)
     # Validate first, then synchronize only the staged metadata localizations.
     # Deliver needs an editable App Store version for version-localized fields,
     # but skip_binary_upload ensures this lane never archives or uploads a build
     # and submit_for_review remains false.
-    precheck(api_key: api_key, app_identifier: ENV.fetch("APP_IDENTIFIER"), default_rule_level: :warn, include_in_app_purchases: false)
+    precheck(api_key: api_key, app_identifier: app_identifier, default_rule_level: :warn, include_in_app_purchases: false)
     upload_to_app_store(
       api_key: api_key,
       app_identifier: ENV.fetch("APP_IDENTIFIER"),
