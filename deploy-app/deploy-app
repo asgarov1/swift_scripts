@@ -281,7 +281,7 @@ interactive_setup() {
   : "${IAP_QUARTERLY_PRICE_USD:=14.99}"
   : "${IAP_LIFETIME_REFERENCE_NAME:=Lifetime Access}"
   : "${IAP_LIFETIME_PRODUCT_ID:=${APP_IDENTIFIER}.premium.lifetime}"
-  : "${IAP_LIFETIME_PRICE_USD:=}"
+  : "${IAP_LIFETIME_PRICE_USD:=44.99}"
   : "${LANGUAGE_NAME:=$language}"
   : "${LANGUAGE_LEVEL:=$language_level}"
   : "${PRIVACY_POLICY_SOURCE:=$privacy_source}"
@@ -415,7 +415,7 @@ migrate_legacy_privacy_policy_slug
 : "${IAP_QUARTERLY_PRICE_USD:=14.99}"
 : "${IAP_LIFETIME_REFERENCE_NAME:=Lifetime Access}"
 : "${IAP_LIFETIME_PRODUCT_ID:=${APP_IDENTIFIER}.premium.lifetime}"
-: "${IAP_LIFETIME_PRICE_USD:=}"
+: "${IAP_LIFETIME_PRICE_USD:=44.99}"
 unset APPLE_ID FASTLANE_SESSION FASTLANE_PASSWORD FASTLANE_USER
 
 required=(
