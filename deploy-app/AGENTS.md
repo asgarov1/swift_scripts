@@ -54,3 +54,32 @@ Fastfile with `ruby -c`, run `git diff --check`, and use a representative
 project's `--dry-run` mode when the change affects staging or validation.
 Never perform a live App Store Connect deployment merely to test a script
 change unless the user explicitly requests it.
+
+## Localized App Store copy
+
+When creating or translating `store-metadata/localizations.json` (or the
+equivalent `DEPLOY_ENV` metadata), preserve the source meaning but make each
+localized value fit the applicable App Store Connect limit. Do not truncate
+mid-word: rewrite concisely and then count the final translated value. These
+limits apply independently to every locale:
+
+| JSON / environment field | App Store Connect limit |
+| --- | --- |
+| `appInformation.name` / app name | 2–30 characters |
+| `appInformation.subtitle` / `SUBTITLE` | 30 characters |
+| `appInformation.description` / `DESCRIPTION` | 4,000 characters |
+| `appInformation.keywords` / `KEYWORDS` | 100 UTF-8 bytes (not merely 100 characters) |
+| `appInformation.promotionalText` / `PROMOTIONAL_TEXT` | 170 characters |
+| `appInformation.releaseNotes` / `RELEASE_NOTES` | 4,000 characters |
+| `subscriptionGroup.displayName` | 1–75 characters |
+| `subscriptionGroup.customAppName` | 1–30 characters, or `null` |
+| `subscriptions.<product-id>.displayName` | 2–30 characters |
+| `subscriptions.<product-id>.description` | 45 characters |
+
+The deployment helper currently validates only some of these fields (and
+allows up to 35 characters for product display names). Treat the Apple limits
+above as authoritative when authoring or translating text, so metadata is
+valid before it reaches Fastlane or App Store Connect. Subscription-group
+display names must also avoid control characters and markup. Keep keywords as
+comma-separated search terms; each term must be more than two characters and
+must not repeat the app or company name.
