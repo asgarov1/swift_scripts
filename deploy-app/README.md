@@ -48,27 +48,55 @@ This performs the same local configuration, metadata, screenshot, and App
 Preview validation as a submission, but does not build, publish the privacy
 policy, or contact Apple.
 
-### Create the App Store Connect record and submit the first build
+### Run App Store checks, or explicitly submit a build
 
 ```sh
 /Users/asgarov1/Projects/swift/scripts/deploy-app/deploy-app \
   /path/to/app
 ```
 
-Add `--release` to automatically release after Apple approves it. The Fastlane
-submission always skips tests, so run and verify the relevant test suite before
-starting deployment.
+The default run stops after Fastlane precheck. It does not upload a build,
+attach a build to a version, or submit the app for review. The Fastlane check
+always skips tests, so run and verify the relevant test suite before starting a
+submission.
+
+To upload and submit, pass `--submit`; add `--release` only when that explicit
+submission should release automatically after approval:
+
+```sh
+/Users/asgarov1/Projects/swift/scripts/deploy-app/app-store-submit \
+  /path/to/app --submit --no-tests
+```
+
+To set the app itself (not IAPs) to Apple's globally free 0.00 price, use:
+
+```sh
+/Users/asgarov1/Projects/swift/scripts/deploy-app/app-store-submit \
+  /path/to/app --set-free-price --no-tests
+```
 
 The bundled `app-store-submit` script is kept alongside `deploy-app`; the
-wrapper forwards `--release` when requested and always forwards `--no-tests`.
+wrapper always forwards `--no-tests`.
+
+### Authentication and signing
+
+Deployments use only the configured App Store Connect API key. They never use
+`APPLE_ID`, `FASTLANE_SESSION`, or Fastlane's `produce` action, so remove any
+legacy session from local deployment files when convenient. The helper also
+does not pass `-allowProvisioningUpdates` to Xcode. Configure the app's bundle
+identifier, certificate, and provisioning profile before deployment; this
+avoids an implicit Developer Portal sign-in during an upload.
+
+For a brand-new app, the API key must have permission to create apps in App
+Store Connect and the bundle identifier must already be registered for signing.
+The helper makes one API lookup and at most one create request; it does not
+retry Apple ID authentication or poll app creation.
 
 ### Team selection
 
-The shared defaults select Javid Asgarov's personal Developer Portal team
-(`2ZQKN8W3SJ`) and App Store Connect team (`128420046`), so Fastlane does not
-ask which team to use. To deploy a particular app through another membership,
-set `FASTLANE_TEAM_ID` and `FASTLANE_ITC_TEAM_ID` in that app's
-`.deploy-app.env`; those values override the shared defaults.
+The App Store Connect API key determines the App Store Connect team, so the
+helper does not select a team interactively. Use an API key created in the
+membership that owns the app.
 
 ## Resuming safely
 

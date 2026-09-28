@@ -6,7 +6,7 @@ TOOLS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 usage() {
   cat <<'EOF'
-Usage: app-store-submit <app-project-path> [--create-app] [--release] [--no-tests] [--dry-run]
+Usage: app-store-submit <app-project-path> [--create-app] [--submit] [--set-free-price] [--release] [--no-tests] [--dry-run]
 
 This internal helper is configured by deploy-app, which creates the app
 project's .app-store-submit.env. Store metadata belongs at store-metadata/en-US
@@ -23,12 +23,16 @@ PROJECT_DIR="$(cd "$1" 2>/dev/null && pwd)" || { printf 'Project directory not f
 shift
 
 create_app=0
+submit=0
+set_free_price=0
 release=0
 dry_run=0
 no_tests=0
 for argument in "$@"; do
   case "$argument" in
     --create-app) create_app=1 ;;
+    --submit) submit=1 ;;
+    --set-free-price) set_free_price=1 ;;
     --release) release=1 ;;
     --no-tests) no_tests=1 ;;
     --dry-run) dry_run=1 ;;
@@ -44,6 +48,11 @@ set -a
 # shellcheck disable=SC1090
 source "$CONFIG_FILE"
 set +a
+
+# This helper is deliberately API-key-only. Do not let a legacy project
+# configuration turn a deployment into an Apple ID web login: repeated web
+# session attempts can trigger Apple's account-lock protection.
+unset APPLE_ID FASTLANE_SESSION FASTLANE_PASSWORD FASTLANE_USER
 
 relative_path() {
   case "$1" in
@@ -168,8 +177,30 @@ mkdir -p "$FASTFILE_DIR/fastlane"
 cat > "$FASTFILE_DIR/fastlane/Fastfile" <<'RUBY'
 default_platform(:ios)
 require "digest/md5"
+require "json"
+require "net/http"
+require "uri"
 
 platform :ios do
+  def asc_request(api_key, method, path, body: nil)
+    token = Spaceship::ConnectAPI::Token.create(**api_key).text
+    uri = URI("https://api.appstoreconnect.apple.com#{path}")
+    request_class = { get: Net::HTTP::Get, post: Net::HTTP::Post }.fetch(method)
+    request = request_class.new(uri)
+    request["Authorization"] = "Bearer #{token}"
+    request["Content-Type"] = "application/json" if body
+    request.body = JSON.generate(body) if body
+    response = Net::HTTP.start(uri.host, uri.port, use_ssl: true) { |http| http.request(request) }
+    unless response.is_a?(Net::HTTPSuccess)
+      UI.user_error!("App Store Connect #{method.to_s.upcase} #{path} failed (#{response.code}): #{response.body}")
+    end
+    JSON.parse(response.body)
+  end
+
+  def app_store_api_key
+    app_store_connect_api_key(key_id: ENV.fetch("ASC_KEY_ID"), issuer_id: ENV.fetch("ASC_ISSUER_ID"), key_filepath: ENV.fetch("ASC_KEY_FILE"), duration: 1_200)
+  end
+
   def staged_screenshots_are_already_uploaded?(app_identifier)
     app = Spaceship::ConnectAPI::App.find(app_identifier)
     return false unless app
@@ -195,16 +226,66 @@ platform :ios do
   end
 
   lane :create_app do
-    UI.user_error!("APPLE_ID is required for --create-app") if ENV["APPLE_ID"].to_s.empty?
-    UI.user_error!("FASTLANE_SESSION is required for --create-app") if ENV["FASTLANE_SESSION"].to_s.empty?
-    begin
-      produce(username: ENV.fetch("APPLE_ID"), app_identifier: ENV.fetch("APP_IDENTIFIER"), app_name: ENV.fetch("APP_NAME"), sku: ENV.fetch("APP_SKU"), platform: "ios", language: ENV.fetch("ASC_PRIMARY_LANGUAGE", "English"), app_version: get_version_number(xcodeproj: ENV.fetch("XCODEPROJ"), target: ENV.fetch("SCHEME")), skip_itc: false)
-    rescue StandardError => error
-      # A prior run can create this record before a later upload step fails.
-      # Fastlane's exact wording differs across Apple backend responses.
-      raise unless error.message.match?(/already exists|duplicate|bundle identifier.*exist/i)
+    # `produce` always uses the Apple ID web flow. Use the App Store Connect
+    # API key directly: one lookup and, only when necessary, one create call.
+    api_key = app_store_connect_api_key(key_id: ENV.fetch("ASC_KEY_ID"), issuer_id: ENV.fetch("ASC_ISSUER_ID"), key_filepath: ENV.fetch("ASC_KEY_FILE"), duration: 1_200)
+    app_identifier = ENV.fetch("APP_IDENTIFIER")
+    if Spaceship::ConnectAPI::App.find(app_identifier)
       UI.important("App Store record already exists; continuing with the remaining deployment steps.")
+      next
     end
+
+    Spaceship::ConnectAPI::App.create(
+      name: ENV.fetch("APP_NAME"),
+      version_string: get_version_number(xcodeproj: ENV.fetch("XCODEPROJ"), target: ENV.fetch("SCHEME")),
+      sku: ENV.fetch("APP_SKU"),
+      primary_locale: ENV.fetch("ASC_PRIMARY_LOCALE", "en-US"),
+      bundle_id: app_identifier,
+      platforms: [Spaceship::ConnectAPI::Platform::IOS]
+    )
+    UI.success("Requested creation of the App Store Connect record using the API key.")
+  end
+
+  lane :check do
+    api_key = app_store_api_key
+    # Precheck reads the App Store record and metadata but cannot upload a
+    # build, attach it to a version, or create a review submission.
+    precheck(api_key: api_key, app_identifier: ENV.fetch("APP_IDENTIFIER"), default_rule_level: :warn, include_in_app_purchases: false)
+  end
+
+  lane :set_free_price do
+    api_key = app_store_api_key
+    app = Spaceship::ConnectAPI::App.find(ENV.fetch("APP_IDENTIFIER"))
+    UI.user_error!("App Store record does not exist for #{ENV.fetch("APP_IDENTIFIER")}") unless app
+
+    # A zero-price point in the base territory produces Apple's automatic
+    # zero-price equivalents in every storefront. No manual country overrides
+    # are created, so future storefronts remain free as well.
+    base_territory = "USA"
+    points = asc_request(api_key, :get, "/v1/apps/#{app.id}/appPricePoints?filter[territory]=#{base_territory}&limit=200").fetch("data")
+    free_point = points.find { |point| point.dig("attributes", "customerPrice").to_f.zero? }
+    UI.user_error!("Apple returned no zero-price point for #{base_territory}") unless free_point
+    # App Store Connect requires inline resource IDs in `${local-id}` form.
+    manual_price_id = '${free-price-' + Time.now.to_i.to_s + '}'
+    schedule = {
+      data: {
+        type: "appPriceSchedules",
+        attributes: {},
+        relationships: {
+          app: { data: { type: "apps", id: app.id } },
+          baseTerritory: { data: { type: "territories", id: base_territory } },
+          manualPrices: { data: [{ type: "appPrices", id: manual_price_id }] }
+        }
+      },
+      included: [{
+        id: manual_price_id,
+        type: "appPrices",
+        attributes: { startDate: nil, endDate: nil },
+        relationships: { appPricePoint: { data: { type: "appPricePoints", id: free_point.fetch("id") } } }
+      }]
+    }
+    asc_request(api_key, :post, "/v1/appPriceSchedules", body: schedule)
+    UI.success("Set #{ENV.fetch("APP_IDENTIFIER")} to Apple's global free price (0.00) in every storefront.")
   end
 
   lane :submit do
@@ -212,7 +293,9 @@ platform :ios do
     update_app_age_rating(api_key: api_key, app_identifier: ENV.fetch("APP_IDENTIFIER"), age_rating_config_path: ENV.fetch("AGE_RATING_CONFIG_PATH"))
     run_tests(project: ENV.fetch("XCODEPROJ"), scheme: ENV.fetch("SCHEME"), device: ENV.fetch("TEST_DEVICE", "iPhone 17 Pro Max"), clean: true) if ENV.fetch("RUN_TESTS", "1") == "1"
     increment_build_number(xcodeproj: ENV.fetch("XCODEPROJ"), build_number: ENV.fetch("BUILD_NUMBER"))
-    build_app(project: ENV.fetch("XCODEPROJ"), scheme: ENV.fetch("SCHEME"), clean: true, export_method: "app-store", xcargs: "-allowProvisioningUpdates")
+    # Configure signing before deployment. Implicit provisioning updates can
+    # make Xcode authenticate to the Developer Portal with an Apple ID.
+    build_app(project: ENV.fetch("XCODEPROJ"), scheme: ENV.fetch("SCHEME"), clean: true, export_method: "app-store")
     # Fastlane 2.240.1 still writes the retired `apps.prices` and
     # `apps.availableTerritories` relationships when `price_tier` is passed.
     # Apple rejects that request before the binary can be uploaded. Set pricing
@@ -245,4 +328,11 @@ run_fastlane() {
 if [[ "$create_app" == "1" ]]; then
   run_fastlane ios create_app
 fi
-run_fastlane ios submit
+if [[ "$set_free_price" == "1" ]]; then
+  run_fastlane ios set_free_price
+fi
+if [[ "$submit" == "1" ]]; then
+  run_fastlane ios submit
+else
+  run_fastlane ios check
+fi
