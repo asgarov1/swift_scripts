@@ -105,7 +105,10 @@ For example, an app whose `APP_IDENTIFIER` is
 Korean format. The generated `.deploy-app.env` exposes `IAP_CREATE_DEFAULTS`,
 the group and product reference names, product IDs, and all prices so you can
 customize them. Set `IAP_CREATE_DEFAULTS=0` to skip this setup. Existing
-products are reused without changing their configured prices.
+products are reused without changing their configured prices. If a prior run
+created a product but stopped before its initial price was saved, a later run
+completes the missing price configuration. Listing localizations are regenerated
+deterministically from `localizations.json` on every run, including `en-US`.
 
 ### Authentication and signing
 

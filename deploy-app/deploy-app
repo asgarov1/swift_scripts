@@ -578,8 +578,6 @@ stage_json_metadata_localizations() {
   printf 'Staged localized App Store metadata from %s.\n' "$localizations_file"
 }
 
-stage_json_metadata_localizations
-
 metadata_dir="$PROJECT_DIR/store-metadata/en-US"
 mkdir -p "$metadata_dir"
 write_metadata() { printf '%s\n' "$2" > "$metadata_dir/$1"; }
@@ -619,8 +617,13 @@ cat > "$age_rating_config" <<EOF
   "userGeneratedContent": ${AGE_RATING_USER_GENERATED_CONTENT:-0}
 }
 EOF
+
 [[ -n "${SUBTITLE:-}" ]] && write_metadata subtitle.txt "$SUBTITLE" || rm -f "$metadata_dir/subtitle.txt"
 [[ -n "${PROMOTIONAL_TEXT:-}" ]] && write_metadata promotional_text.txt "$PROMOTIONAL_TEXT" || rm -f "$metadata_dir/promotional_text.txt"
+
+# Apply the JSON source last so it remains authoritative for every locale,
+# including en-US, when this wrapper refreshes its baseline metadata files.
+stage_json_metadata_localizations
 
 # The bundled submit helper consumes this file. %q keeps spaces and punctuation
 # source-safe without exposing credentials in command arguments.

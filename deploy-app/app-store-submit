@@ -260,6 +260,44 @@ platform :ios do
     })
   end
 
+  # A product can exist even if a prior run stopped while its first price was
+  # being configured. Reconcile prices independently without overwriting a
+  # price that was already chosen in App Store Connect.
+  def subscription_has_price?(api_key, subscription_id, plan_type)
+    asc_collection(api_key, "/v1/subscriptions/#{subscription_id}/prices?filter[territory]=USA&filter[planType]=#{plan_type}&limit=200").any?
+  end
+
+  def ensure_subscription_price(api_key, subscription_id:, price:, period:)
+    plan_type = period == "ONE_MONTH" ? "MONTHLY" : "UPFRONT"
+    return if subscription_has_price?(api_key, subscription_id, plan_type)
+
+    create_subscription_price(
+      api_key,
+      subscription_id: subscription_id,
+      price: price,
+      price_points_path: "/v1/subscriptions/#{subscription_id}/pricePoints?filter[territory]=USA&limit=200",
+      plan_type: plan_type
+    )
+    UI.success("Configured the USA price for subscription #{subscription_id}.")
+  end
+
+  def in_app_purchase_has_price_schedule?(api_key, product_id)
+    response = asc_request(api_key, :get, "/v2/inAppPurchases/#{product_id}/relationships/iapPriceSchedule")
+    !response.fetch("data", nil).nil?
+  end
+
+  def ensure_in_app_purchase_price_schedule(api_key, product_id:, price:)
+    return if price.to_s.empty? || in_app_purchase_has_price_schedule?(api_key, product_id)
+
+    create_in_app_purchase_price_schedule(
+      api_key,
+      product_id: product_id,
+      price: price,
+      price_points_path: "/v2/inAppPurchases/#{product_id}/pricePoints?filter[territory]=USA&limit=200"
+    )
+    UI.success("Configured the USA price for in-app purchase #{product_id}.")
+  end
+
   def ensure_default_products(api_key, app)
     return unless ENV.fetch("IAP_CREATE_DEFAULTS", "1") == "1"
 
@@ -281,36 +319,35 @@ platform :ios do
     subscription_specs.each do |name_key, product_key, price_key, period|
       product_id = ENV.fetch(product_key)
       subscription = asc_resource_with_product_id(api_key, subscriptions_path, product_id)
-      next if subscription
-
-      subscription = asc_request(api_key, :post, "/v1/subscriptions", body: {
-        data: {
-          type: "subscriptions",
-          # `availableInAllTerritories` is valid for in-app purchases, but is
-          # not a subscriptions API attribute. Subscription availability is
-          # instead determined by its price configuration.
-          attributes: { name: ENV.fetch(name_key), productId: product_id, subscriptionPeriod: period, reviewNote: "Unlocks the complete course." },
-          relationships: { group: { data: { type: "subscriptionGroups", id: group.fetch("id") } } }
-        }
-      }).fetch("data")
-      plan_type = period == "ONE_MONTH" ? "MONTHLY" : "UPFRONT"
-      create_subscription_price(api_key, subscription_id: subscription.fetch("id"), price: ENV.fetch(price_key), price_points_path: "/v1/subscriptions/#{subscription.fetch("id")}/pricePoints?filter[territory]=USA&limit=200", plan_type: plan_type)
-      UI.success("Created subscription #{product_id}.")
+      unless subscription
+        subscription = asc_request(api_key, :post, "/v1/subscriptions", body: {
+          data: {
+            type: "subscriptions",
+            # `availableInAllTerritories` is valid for in-app purchases, but is
+            # not a subscriptions API attribute. Subscription availability is
+            # instead determined by its price configuration.
+            attributes: { name: ENV.fetch(name_key), productId: product_id, subscriptionPeriod: period, reviewNote: "Unlocks the complete course." },
+            relationships: { group: { data: { type: "subscriptionGroups", id: group.fetch("id") } } }
+          }
+        }).fetch("data")
+        UI.success("Created subscription #{product_id}.")
+      end
+      ensure_subscription_price(api_key, subscription_id: subscription.fetch("id"), price: ENV.fetch(price_key), period: period)
     end
 
     lifetime_product_id = ENV.fetch("IAP_LIFETIME_PRODUCT_ID")
     lifetime = asc_resource_with_product_id(api_key, "/v2/apps/#{app.id}/inAppPurchases?limit=200", lifetime_product_id)
-    return if lifetime
-
-    lifetime = asc_request(api_key, :post, "/v2/inAppPurchases", body: {
-      data: {
-        type: "inAppPurchases",
-        attributes: { name: ENV.fetch("IAP_LIFETIME_REFERENCE_NAME"), productId: lifetime_product_id, inAppPurchaseType: "NON_CONSUMABLE", reviewNote: "Unlocks lifetime access to the complete course.", availableInAllTerritories: true },
-        relationships: { app: { data: { type: "apps", id: app.id } } }
-      }
-    }).fetch("data")
-    create_in_app_purchase_price_schedule(api_key, product_id: lifetime.fetch("id"), price: ENV.fetch("IAP_LIFETIME_PRICE_USD", ""), price_points_path: "/v2/inAppPurchases/#{lifetime.fetch("id")}/pricePoints?filter[territory]=USA&limit=200")
-    UI.success("Created non-consumable #{lifetime_product_id}.")
+    unless lifetime
+      lifetime = asc_request(api_key, :post, "/v2/inAppPurchases", body: {
+        data: {
+          type: "inAppPurchases",
+          attributes: { name: ENV.fetch("IAP_LIFETIME_REFERENCE_NAME"), productId: lifetime_product_id, inAppPurchaseType: "NON_CONSUMABLE", reviewNote: "Unlocks lifetime access to the complete course.", availableInAllTerritories: true },
+          relationships: { app: { data: { type: "apps", id: app.id } } }
+        }
+      }).fetch("data")
+      UI.success("Created non-consumable #{lifetime_product_id}.")
+    end
+    ensure_in_app_purchase_price_schedule(api_key, product_id: lifetime.fetch("id"), price: ENV.fetch("IAP_LIFETIME_PRICE_USD", ""))
   end
 
   def staged_screenshots_are_already_uploaded?(app_identifier)
