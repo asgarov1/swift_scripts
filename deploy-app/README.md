@@ -68,8 +68,14 @@ source of localized App Store listing text. Before Fastlane runs, `deploy-app`
 expands every locale's `appInformation` fields into the corresponding Deliver
 directories (`name.txt`, `subtitle.txt`, `description.txt`, `keywords.txt`,
 `promotional_text.txt`, and `release_notes.txt`). The JSON `subscriptions`
-section is product-localization source data; it is not an App Store listing
-field and is not uploaded by Deliver.
+section is uploaded separately through the product localization API for the
+configured monthly, quarterly, and lifetime products. Each key must exactly
+match the configured product ID, with `displayName` and `description` strings
+for that locale. These explicit entries are authoritative: changed values are
+updated, unchanged values are skipped, and other remote locales are preserved.
+Unconfigured product IDs produce a warning; no product IDs or translations are
+inferred. The supported v1 localization endpoints are used for compatibility
+with the existing product setup flow.
 
 To upload and submit, pass `--submit`; add `--release` only when that explicit
 submission should release automatically after approval:
@@ -107,7 +113,13 @@ the group and product reference names, product IDs, and all prices so you can
 customize them. Set `IAP_CREATE_DEFAULTS=0` to skip this setup. Existing
 products are reused without changing their configured prices. If a prior run
 created a product but stopped before its initial price was saved, a later run
-completes the missing price configuration. Listing localizations are regenerated
+completes the missing price configuration. Before setting an initial subscription
+price, the helper creates missing `UPFRONT` plan availability for USA, as required
+by [Apple's pricing workflow](https://developer.apple.com/documentation/appstoreconnectapi/configuring-subscription-prices-across-territories). Initial subscription setup remains USA-only; it
+does not enable unpriced territories. Existing availability is preserved; an
+existing plan excluding USA requires an explicit change in App Store Connect.
+API resource lists follow pagination so reruns also find items beyond page one.
+Listing localizations are regenerated
 deterministically from `localizations.json` on every run, including `en-US`.
 
 ### Authentication and signing
@@ -256,3 +268,13 @@ App Previews are optional. Put up to three videos per device family in
 preview exports (886×1920 for iPhone and 1200×1600 for iPad, either
 orientation), duration, frame rate, codec, extension, and 500 MB size limit,
 then passes the localized previews to Fastlane’s `app_previews_path` upload.
+
+### Script regression checks
+
+```sh
+ruby deploy-app/tests/fastfile_test.rb
+bash -n deploy-app/deploy-app deploy-app/app-store-submit
+```
+
+The tests load the generated Fastfile with a stubbed Fastlane DSL and mock the
+App Store Connect API. They perform no remote writes.

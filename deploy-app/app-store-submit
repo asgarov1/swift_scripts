@@ -189,8 +189,11 @@ require "uri"
 platform :ios do
   def asc_request(api_key, method, path, body: nil)
     token = Spaceship::ConnectAPI::Token.create(**api_key).text
-    uri = URI("https://api.appstoreconnect.apple.com#{path}")
-    request_class = { get: Net::HTTP::Get, post: Net::HTTP::Post }.fetch(method)
+    uri = URI.join("https://api.appstoreconnect.apple.com", path)
+    unless uri.scheme == "https" && uri.host == "api.appstoreconnect.apple.com" && uri.port == 443
+      UI.user_error!("Unexpected App Store Connect URL: #{path}")
+    end
+    request_class = { get: Net::HTTP::Get, post: Net::HTTP::Post, patch: Net::HTTP::Patch }.fetch(method)
     request = request_class.new(uri)
     request["Authorization"] = "Bearer #{token}"
     request["Content-Type"] = "application/json" if body
@@ -199,7 +202,7 @@ platform :ios do
     unless response.is_a?(Net::HTTPSuccess)
       UI.user_error!("App Store Connect #{method.to_s.upcase} #{path} failed (#{response.code}): #{response.body}")
     end
-    JSON.parse(response.body)
+    response.body.to_s.empty? ? {} : JSON.parse(response.body)
   end
 
   def app_store_api_key
@@ -207,7 +210,13 @@ platform :ios do
   end
 
   def asc_collection(api_key, path)
-    asc_request(api_key, :get, path).fetch("data")
+    resources = []
+    while path
+      response = asc_request(api_key, :get, path)
+      resources.concat(response.fetch("data"))
+      path = response.dig("links", "next")
+    end
+    resources
   end
 
   def asc_resource_with_product_id(api_key, path, product_id)
@@ -272,6 +281,31 @@ platform :ios do
     asc_collection(api_key, "/v1/subscriptions/#{subscription_id}/prices?filter[territory]=USA&filter[planType]=#{plan_type}&limit=200").any?
   end
 
+  def ensure_subscription_plan_availability(api_key, subscription_id, plan_type)
+    plans = asc_collection(api_key, "/v1/subscriptions/#{subscription_id}/planAvailabilities?limit=200")
+    plan = plans.find { |item| item.dig("attributes", "planType") == plan_type }
+    if plan
+      territories = asc_collection(api_key, "/v1/subscriptionPlanAvailabilities/#{plan.fetch("id")}/availableTerritories?limit=200")
+      unless territories.any? { |territory| territory.fetch("id") == "USA" }
+        UI.user_error!("Subscription #{subscription_id} has an existing #{plan_type} plan without USA availability. Enable USA in App Store Connect before configuring its USA price.")
+      end
+      return
+    end
+
+    # Apple requires plan availability before prices. Keep the initial offering
+    # aligned with the USA-only price configured below; preserve existing plans.
+    asc_request(api_key, :post, "/v1/subscriptionPlanAvailabilities", body: {
+      data: {
+        type: "subscriptionPlanAvailabilities",
+        attributes: { planType: plan_type, availableInNewTerritories: false },
+        relationships: {
+          subscription: { data: { type: "subscriptions", id: subscription_id } },
+          availableTerritories: { data: [{ type: "territories", id: "USA" }] }
+        }
+      }
+    })
+  end
+
   def ensure_subscription_price(api_key, subscription_id:, price:)
     # `MONTHLY` is Apple’s optional monthly billing for a 12-month commitment,
     # not a standard one-month subscription. It is unavailable in USA (and
@@ -280,6 +314,7 @@ platform :ios do
     plan_type = "UPFRONT"
     return if subscription_has_price?(api_key, subscription_id, plan_type)
 
+    ensure_subscription_plan_availability(api_key, subscription_id, plan_type)
     create_subscription_price(
       api_key,
       subscription_id: subscription_id,
@@ -310,8 +345,59 @@ platform :ios do
     UI.success("Configured the USA price for in-app purchase #{product_id}.")
   end
 
+  def sync_product_localizations(api_key, product, subscription:)
+    source = File.join(ENV.fetch("METADATA_PATH"), "localizations.json")
+    return unless File.file?(source)
+
+    product_id = product.dig("attributes", "productId")
+    entries = JSON.parse(File.read(source)).filter_map do |locale, values|
+      text = values.fetch("subscriptions", {})[product_id]
+      next unless text
+      unless text.is_a?(Hash) && %w[displayName description].all? { |key| text[key].is_a?(String) && !text[key].strip.empty? }
+        UI.user_error!("Invalid product localization for #{product_id} (#{locale}) in #{source}")
+      end
+      [locale, { name: text.fetch("displayName"), description: text.fetch("description") }]
+    end
+    return if entries.empty?
+
+    # The v1 localization API remains supported for existing integrations and
+    # avoids creating review versions as a side effect of this setup flow.
+    type = subscription ? "subscriptionLocalizations" : "inAppPurchaseLocalizations"
+    parent_path = subscription ? "/v1/subscriptions" : "/v2/inAppPurchases"
+    relationship = subscription ? :subscription : :inAppPurchaseV2
+    parent_type = subscription ? "subscriptions" : "inAppPurchases"
+    existing = asc_collection(api_key, "#{parent_path}/#{product.fetch("id")}/#{type}?limit=200")
+    entries.each do |locale, attributes|
+      localization = existing.find { |item| item.dig("attributes", "locale") == locale }
+      if localization
+        next if attributes.all? { |key, value| localization.dig("attributes", key.to_s) == value }
+        asc_request(api_key, :patch, "/v1/#{type}/#{localization.fetch("id")}", body: {
+          data: { type: type, id: localization.fetch("id"), attributes: attributes }
+        })
+      else
+        asc_request(api_key, :post, "/v1/#{type}", body: {
+          data: {
+            type: type, attributes: attributes.merge(locale: locale),
+            relationships: { relationship => { data: { type: parent_type, id: product.fetch("id") } } }
+          }
+        })
+      end
+    end
+    UI.success("Synchronized product localizations for #{product_id}.")
+  end
+
   def ensure_default_products(api_key, app)
     return unless ENV.fetch("IAP_CREATE_DEFAULTS", "1") == "1"
+
+    source = File.join(ENV.fetch("METADATA_PATH"), "localizations.json")
+    if File.file?(source)
+      configured_ids = %w[IAP_MONTHLY_PRODUCT_ID IAP_QUARTERLY_PRODUCT_ID IAP_LIFETIME_PRODUCT_ID].map { |key| ENV.fetch(key) }
+      source_ids = JSON.parse(File.read(source)).values.flat_map { |value| value.fetch("subscriptions", {}).keys }.uniq
+      unknown_ids = source_ids - configured_ids
+      unless unknown_ids.empty?
+        UI.important("Product localizations skipped for unconfigured product IDs: #{unknown_ids.join(', ')}. Match subscriptions keys in #{source} to the configured IAP product IDs.")
+      end
+    end
 
     group_name = ENV.fetch("IAP_SUBSCRIPTION_GROUP_NAME")
     groups = asc_collection(api_key, "/v1/apps/#{app.id}/subscriptionGroups?limit=200")
@@ -337,13 +423,14 @@ platform :ios do
             type: "subscriptions",
             # `availableInAllTerritories` is valid for in-app purchases, but is
             # not a subscriptions API attribute. Subscription availability is
-            # instead determined by its price configuration.
+            # configured separately through subscriptionPlanAvailabilities.
             attributes: { name: ENV.fetch(name_key), productId: product_id, subscriptionPeriod: period, reviewNote: "Unlocks the complete course." },
             relationships: { group: { data: { type: "subscriptionGroups", id: group.fetch("id") } } }
           }
         }).fetch("data")
         UI.success("Created subscription #{product_id}.")
       end
+      sync_product_localizations(api_key, subscription, subscription: true)
       ensure_subscription_price(api_key, subscription_id: subscription.fetch("id"), price: ENV.fetch(price_key))
     end
 
@@ -359,6 +446,7 @@ platform :ios do
       }).fetch("data")
       UI.success("Created non-consumable #{lifetime_product_id}.")
     end
+    sync_product_localizations(api_key, lifetime, subscription: false)
     ensure_in_app_purchase_price_schedule(api_key, product_id: lifetime.fetch("id"), price: ENV.fetch("IAP_LIFETIME_PRICE_USD", ""))
   end
 

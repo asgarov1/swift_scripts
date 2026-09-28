@@ -1,0 +1,128 @@
+require 'minitest/autorun'
+require 'tmpdir'
+require 'json'
+
+module UI
+  def self.user_error!(message); raise message; end
+  def self.success(message); end
+  def self.important(message); end
+end
+
+class FastfileHarness
+  def self.default_platform(*); end
+  def self.platform(*); yield; end
+  def self.lane(*); end
+  source = File.read(File.expand_path('../app-store-submit', __dir__))
+  fastfile = source.split("<<'RUBY'\n", 2).last.split("\nRUBY\n", 2).first
+  class_eval(fastfile, 'generated Fastfile')
+
+  attr_reader :requests
+  def initialize(&handler)
+    @requests = []
+    @handler = handler
+  end
+  def asc_request(key, method, path, body: nil)
+    @requests << [method, path, body]
+    @handler.call(method, path, body)
+  end
+end
+
+class FastfileTest < Minitest::Test
+  def collection(data = [], next_url = nil)
+    { 'data' => data, 'links' => { 'next' => next_url } }
+  end
+
+  def test_partial_price_failure_can_be_retried_without_recreating_availability
+    plan = false
+    priced = false
+    attempts = 0
+    harness = FastfileHarness.new do |method, path, body|
+      case [method, path.split('?').first]
+      when [:get, '/v1/subscriptions/sub/prices']
+        collection(priced ? [{ 'id' => 'price' }] : [])
+      when [:get, '/v1/subscriptions/sub/planAvailabilities']
+        collection(plan ? [{ 'id' => 'plan', 'attributes' => { 'planType' => 'UPFRONT' } }] : [])
+      when [:post, '/v1/subscriptionPlanAvailabilities']
+        assert_equal 'UPFRONT', body.dig(:data, :attributes, :planType)
+        assert_equal [{ type: 'territories', id: 'USA' }], body.dig(:data, :relationships, :availableTerritories, :data)
+        plan = true
+        {}
+      when [:get, '/v1/subscriptionPlanAvailabilities/plan/availableTerritories']
+        collection([{ 'id' => 'USA' }])
+      when [:get, '/v1/subscriptions/sub/pricePoints']
+        assert_includes path, 'filter[planType]=UPFRONT'
+        collection([{ 'id' => 'point', 'attributes' => { 'customerPrice' => '6.99' } }])
+      when [:post, '/v1/subscriptionPrices']
+        assert plan, 'Plan availability must exist before pricing'
+        assert_equal 'point', body.dig(:data, :relationships, :subscriptionPricePoint, :data, :id)
+        attempts += 1
+        raise 'Simulated pricing failure' if attempts == 1
+        priced = true
+        {}
+      else
+        flunk "Unexpected request: #{method} #{path}"
+      end
+    end
+    assert_raises(RuntimeError) { harness.ensure_subscription_price(nil, subscription_id: 'sub', price: '6.99') }
+    2.times { harness.ensure_subscription_price(nil, subscription_id: 'sub', price: '6.99') }
+    assert_equal 1, harness.requests.count { |method, path, _| method == :post && path == '/v1/subscriptionPlanAvailabilities' }
+    assert_equal 2, attempts
+  end
+
+  def test_existing_price_is_preserved
+    harness = FastfileHarness.new { |*| collection([{ 'id' => 'existing' }]) }
+    harness.ensure_subscription_price(nil, subscription_id: 'sub', price: '6.99')
+    assert_equal 1, harness.requests.size
+    assert_equal :get, harness.requests.first.first
+  end
+
+  def test_existing_plan_excluding_usa_is_not_overwritten
+    harness = FastfileHarness.new do |method, path, _|
+      assert_equal :get, method
+      path.include?('/planAvailabilities') ? collection([{ 'id' => 'plan', 'attributes' => { 'planType' => 'UPFRONT' } }]) : collection([{ 'id' => 'CAN' }])
+    end
+    error = assert_raises(RuntimeError) { harness.ensure_subscription_plan_availability(nil, 'sub', 'UPFRONT') }
+    assert_includes error.message, 'Enable USA'
+  end
+
+  def test_price_point_lookup_follows_pagination
+    harness = FastfileHarness.new do |_, path, _|
+      path == '/first' ? collection([], 'https://api.appstoreconnect.apple.com/second') : collection([{ 'id' => 'point', 'attributes' => { 'customerPrice' => '14.99' } }])
+    end
+    assert_equal 'point', harness.asc_price_point(nil, '/first', '14.99').fetch('id')
+    assert_equal 2, harness.requests.size
+  end
+
+  def test_product_localizations_create_update_and_skip_unchanged
+    previous = ENV['METADATA_PATH']
+    Dir.mktmpdir do |directory|
+      ENV['METADATA_PATH'] = directory
+      File.write(File.join(directory, 'localizations.json'), JSON.generate({
+        'en-US' => { 'subscriptions' => { 'product' => { 'displayName' => 'Access', 'description' => 'All lessons' } } },
+        'de-DE' => { 'subscriptions' => { 'product' => { 'displayName' => 'Zugang', 'description' => 'Alle Lektionen' } } }
+      }))
+      [true, false].each do |subscription|
+        remote = [{ 'id' => 'existing', 'attributes' => { 'locale' => 'en-US', 'name' => 'Old', 'description' => 'Old' } }]
+        harness = FastfileHarness.new do |method, path, body|
+          case method
+          when :get then collection(remote)
+          when :patch
+            remote.first['attributes'].merge!(body.fetch(:data).fetch(:attributes).transform_keys(&:to_s))
+            {}
+          when :post
+            expected_relation = subscription ? :subscription : :inAppPurchaseV2
+            assert_equal 'remote-product', body.dig(:data, :relationships, expected_relation, :data, :id)
+            remote << { 'id' => 'new', 'attributes' => body.fetch(:data).fetch(:attributes).transform_keys(&:to_s) }
+            {}
+          end
+        end
+        product = { 'id' => 'remote-product', 'attributes' => { 'productId' => 'product' } }
+        2.times { harness.sync_product_localizations(nil, product, subscription: subscription) }
+        assert_equal 1, harness.requests.count { |method, _, _| method == :post }
+        assert_equal 1, harness.requests.count { |method, _, _| method == :patch }
+      end
+    end
+  ensure
+    ENV['METADATA_PATH'] = previous
+  end
+end
