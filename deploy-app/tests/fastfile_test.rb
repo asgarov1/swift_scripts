@@ -291,7 +291,7 @@ class FastfileTest < Minitest::Test
     FileUtils.remove_entry(environment['METADATA_PATH']) if environment && File.directory?(environment['METADATA_PATH'])
   end
 
-  def test_inline_in_app_purchase_price_uses_an_accepted_local_id
+  def test_inline_in_app_purchase_price_matches_apple_resource_schema
     harness = FastfileHarness.new do |method, path, body|
       case [method, path]
       when [:get, '/price-points']
@@ -300,6 +300,13 @@ class FastfileTest < Minitest::Test
         local_price_id = body.dig(:data, :relationships, :manualPrices, :data, 0, :id)
         assert_equal '${price1}', local_price_id
         assert_equal local_price_id, body.dig(:included, 0, :id)
+        assert_equal 'inAppPurchasePriceSchedules', body.dig(:data, :type)
+        refute body.fetch(:data).key?(:attributes)
+        assert_equal({ type: 'inAppPurchases', id: '6816897818' }, body.dig(:data, :relationships, :inAppPurchase, :data))
+        assert_equal({ type: 'territories', id: 'USA' }, body.dig(:data, :relationships, :baseTerritory, :data))
+        assert_equal 'inAppPurchasePrices', body.dig(:included, 0, :type)
+        assert_equal({ type: 'inAppPurchases', id: '6816897818' }, body.dig(:included, 0, :relationships, :inAppPurchaseV2, :data))
+        assert_equal({ type: 'inAppPurchasePricePoints', id: 'price-point' }, body.dig(:included, 0, :relationships, :inAppPurchasePricePoint, :data))
         {}
       else
         flunk "Unexpected request: #{method} #{path}"

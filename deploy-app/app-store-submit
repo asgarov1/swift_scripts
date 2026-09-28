@@ -236,17 +236,12 @@ platform :ios do
     return if price.to_s.empty?
 
     price_point = asc_price_point(api_key, price_points_path, price)
-    # App Store Connect only accepts JSON:API local resource IDs for inline
-    # creations here. Its accepted form uses an alphanumeric local token
-    # inside `${...}` (for example, Apple's `${price1}` documentation
-    # example); hyphenated, generated tokens are rejected with a 409.
-    # This request contains a single inline price, so a stable local ID is
-    # sufficient and makes retries deterministic.
+    # Inline resource IDs must include both delimiters in `${local-id}`.
+    # One inline price needs only a request-local token, as in Apple's example.
     local_price_id = "${price1}"
     schedule = {
       data: {
         type: "inAppPurchasePriceSchedules",
-        attributes: {},
         relationships: {
           inAppPurchase: { data: { type: "inAppPurchases", id: product_id } },
           baseTerritory: { data: { type: "territories", id: "USA" } },
@@ -258,7 +253,8 @@ platform :ios do
         type: "inAppPurchasePrices",
         attributes: { startDate: nil, endDate: nil },
         relationships: {
-          inAppPurchaseV2: { data: { type: "inAppPurchasesV2", id: product_id } },
+          # V2 is part of the relationship name, not the resource type.
+          inAppPurchaseV2: { data: { type: "inAppPurchases", id: product_id } },
           inAppPurchasePricePoint: { data: { type: "inAppPurchasePricePoints", id: price_point.fetch("id") } }
         }
       }]
