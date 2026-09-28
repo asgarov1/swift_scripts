@@ -79,6 +79,11 @@ export AGE_RATING_CONFIG_PATH
 case "$AVAILABLE_IN_ALL_TERRITORIES" in 0|1) ;; *) printf 'AVAILABLE_IN_ALL_TERRITORIES must be 0 or 1\n' >&2; exit 1 ;; esac
 case "${SKIP_SCREENSHOTS_IF_UNCHANGED:-1}" in 0|1) ;; *) printf 'SKIP_SCREENSHOTS_IF_UNCHANGED must be 0 or 1\n' >&2; exit 1 ;; esac
 [[ "$PRICE_TIER" =~ ^[0-9]+$ ]] || { printf 'PRICE_TIER must be a non-negative integer\n' >&2; exit 1; }
+if [[ "${IAP_CREATE_DEFAULTS:-1}" == 1 ]]; then
+  for variable in IAP_MONTHLY_PRODUCT_ID IAP_QUARTERLY_PRODUCT_ID IAP_LIFETIME_PRODUCT_ID; do
+    [[ "${!variable:-}" =~ ^[A-Za-z0-9_.]+$ ]] || { printf '%s must contain only ASCII letters, digits, underscores, and periods\n' "$variable" >&2; exit 1; }
+  done
+fi
 
 ASSET_DIR="$(mktemp -d "${TMPDIR:-/tmp}/app-store-assets.XXXXXX")"
 PREVIEW_ASSET_DIR="$(mktemp -d "${TMPDIR:-/tmp}/app-store-previews.XXXXXX")"

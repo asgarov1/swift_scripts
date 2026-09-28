@@ -169,6 +169,36 @@ deploy_env_value_is_missing() {
   [[ "|$DEPLOY_ENV_MISSING_VARIABLES|" == *"|$1|"* ]]
 }
 
+# App Store Connect permits only ASCII letters, digits, underscores, and
+# periods in IAP product IDs. Bundle identifiers can additionally contain
+# hyphens, so they cannot safely be used verbatim as a product-ID prefix.
+normalized_iap_product_id_prefix() {
+  printf '%s' "$APP_IDENTIFIER" | LC_ALL=C tr -c 'A-Za-z0-9_.' '_'
+}
+
+migrate_generated_iap_product_ids() {
+  local prefix spec variable legacy_id suffix migrated=0
+  prefix="$(normalized_iap_product_id_prefix)"
+  [[ -n "$prefix" ]] || fail "APP_IDENTIFIER cannot produce a valid in-app purchase product ID prefix"
+
+  for spec in \
+    'IAP_MONTHLY_PRODUCT_ID:.premium' \
+    'IAP_QUARTERLY_PRODUCT_ID:.premium.3months' \
+    'IAP_LIFETIME_PRODUCT_ID:.premium.lifetime'; do
+    variable="${spec%%:*}"
+    suffix="${spec#*:}"
+    legacy_id="${APP_IDENTIFIER}${suffix}"
+    if [[ "${!variable:-}" == "$legacy_id" ]]; then
+      printf -v "$variable" '%s%s' "$prefix" "$suffix"
+      migrated=1
+    fi
+  done
+
+  if [[ "$migrated" == 1 ]]; then
+    printf 'Migrated generated in-app purchase product IDs to App Store Connect-compatible values.\n'
+  fi
+}
+
 record_missing_deploy_env_values() {
   local variable
   DEPLOY_ENV_MISSING_VARIABLES=""
@@ -238,7 +268,7 @@ write_deploy_env() {
 }
 
 interactive_setup() {
-  local xcodeproj scheme identifier app_name language language_level privacy_source privacy_repo policy_slug privacy_url copyright_owner build_number
+  local xcodeproj scheme identifier app_name language language_level privacy_source privacy_repo policy_slug privacy_url copyright_owner build_number iap_product_id_prefix
   [[ -t 0 && -r /dev/tty ]] || fail "Missing $DEPLOY_ENV and no interactive terminal is available. Create it from .deploy-app.env.example."
   [[ -e "$PROJECT_DIR/.deploy-app.env.example" ]] || cp "$TEMPLATE" "$PROJECT_DIR/.deploy-app.env.example"
   mkdir -p "$PROJECT_DIR/store-metadata/en-US"
@@ -274,13 +304,14 @@ interactive_setup() {
   : "${IAP_CREATE_DEFAULTS:=1}"
   : "${IAP_SUBSCRIPTION_GROUP_NAME:=Premium Access}"
   : "${IAP_MONTHLY_REFERENCE_NAME:=Monthly Subscription}"
-  : "${IAP_MONTHLY_PRODUCT_ID:=${APP_IDENTIFIER}.premium}"
+  iap_product_id_prefix="$(normalized_iap_product_id_prefix)"
+  : "${IAP_MONTHLY_PRODUCT_ID:=${iap_product_id_prefix}.premium}"
   : "${IAP_MONTHLY_PRICE_USD:=6.99}"
   : "${IAP_QUARTERLY_REFERENCE_NAME:=Quarterly (3 months) Subscription}"
-  : "${IAP_QUARTERLY_PRODUCT_ID:=${APP_IDENTIFIER}.premium.3months}"
+  : "${IAP_QUARTERLY_PRODUCT_ID:=${iap_product_id_prefix}.premium.3months}"
   : "${IAP_QUARTERLY_PRICE_USD:=14.99}"
   : "${IAP_LIFETIME_REFERENCE_NAME:=Lifetime Access}"
-  : "${IAP_LIFETIME_PRODUCT_ID:=${APP_IDENTIFIER}.premium.lifetime}"
+  : "${IAP_LIFETIME_PRODUCT_ID:=${iap_product_id_prefix}.premium.lifetime}"
   : "${IAP_LIFETIME_PRICE_USD:=44.99}"
   : "${LANGUAGE_NAME:=$language}"
   : "${LANGUAGE_LEVEL:=$language_level}"
@@ -404,17 +435,18 @@ set -a
 source "$DEPLOY_ENV"
 set +a
 migrate_legacy_privacy_policy_slug
+migrate_generated_iap_product_ids
 : "${PROMOTIONAL_TEXT:=No account, no registration, fully offline app - ideal for learning on the go!}"
 : "${IAP_CREATE_DEFAULTS:=1}"
 : "${IAP_SUBSCRIPTION_GROUP_NAME:=Premium Access}"
 : "${IAP_MONTHLY_REFERENCE_NAME:=Monthly Subscription}"
-: "${IAP_MONTHLY_PRODUCT_ID:=${APP_IDENTIFIER}.premium}"
+: "${IAP_MONTHLY_PRODUCT_ID:=$(normalized_iap_product_id_prefix).premium}"
 : "${IAP_MONTHLY_PRICE_USD:=6.99}"
 : "${IAP_QUARTERLY_REFERENCE_NAME:=Quarterly (3 months) Subscription}"
-: "${IAP_QUARTERLY_PRODUCT_ID:=${APP_IDENTIFIER}.premium.3months}"
+: "${IAP_QUARTERLY_PRODUCT_ID:=$(normalized_iap_product_id_prefix).premium.3months}"
 : "${IAP_QUARTERLY_PRICE_USD:=14.99}"
 : "${IAP_LIFETIME_REFERENCE_NAME:=Lifetime Access}"
-: "${IAP_LIFETIME_PRODUCT_ID:=${APP_IDENTIFIER}.premium.lifetime}"
+: "${IAP_LIFETIME_PRODUCT_ID:=$(normalized_iap_product_id_prefix).premium.lifetime}"
 : "${IAP_LIFETIME_PRICE_USD:=44.99}"
 unset APPLE_ID FASTLANE_SESSION FASTLANE_PASSWORD FASTLANE_USER
 
@@ -447,6 +479,9 @@ if [[ "$IAP_CREATE_DEFAULTS" == 1 ]]; then
     [[ "${!variable}" =~ ^[0-9]+([.][0-9]{1,2})?$ ]] || fail "$variable must be a non-negative USD amount"
   done
   [[ -z "$IAP_LIFETIME_PRICE_USD" || "$IAP_LIFETIME_PRICE_USD" =~ ^[0-9]+([.][0-9]{1,2})?$ ]] || fail "IAP_LIFETIME_PRICE_USD must be a non-negative USD amount"
+  for variable in IAP_MONTHLY_PRODUCT_ID IAP_QUARTERLY_PRODUCT_ID IAP_LIFETIME_PRODUCT_ID; do
+    [[ "${!variable}" =~ ^[A-Za-z0-9_.]+$ ]] || fail "$variable must contain only ASCII letters, digits, underscores, and periods"
+  done
 fi
 [[ "$BUILD_NUMBER" =~ ^[1-9][0-9]*$ ]] || fail "BUILD_NUMBER must be a positive integer"
 copyright_year="$(printf '%s' "$COPYRIGHT" | rg -o '[0-9]{4}' | head -1 || true)"
