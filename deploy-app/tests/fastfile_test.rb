@@ -1,6 +1,7 @@
 require 'minitest/autorun'
 require 'tmpdir'
 require 'json'
+require 'fileutils'
 
 module UI
   def self.user_error!(message); raise message; end
@@ -210,5 +211,52 @@ class FastfileTest < Minitest::Test
     end
   ensure
     ENV['METADATA_PATH'] = previous
+  end
+
+  def test_default_products_list_lifetime_iaps_through_the_v1_app_collection
+    environment = {
+      'IAP_CREATE_DEFAULTS' => '1',
+      'METADATA_PATH' => Dir.mktmpdir,
+      'IAP_SUBSCRIPTION_GROUP_NAME' => 'Premium Access',
+      'IAP_MONTHLY_REFERENCE_NAME' => 'Monthly',
+      'IAP_MONTHLY_PRODUCT_ID' => 'product.monthly',
+      'IAP_MONTHLY_PRICE_USD' => '6.99',
+      'IAP_QUARTERLY_REFERENCE_NAME' => 'Quarterly',
+      'IAP_QUARTERLY_PRODUCT_ID' => 'product.quarterly',
+      'IAP_QUARTERLY_PRICE_USD' => '14.99',
+      'IAP_LIFETIME_REFERENCE_NAME' => 'Lifetime',
+      'IAP_LIFETIME_PRODUCT_ID' => 'product.lifetime',
+      'IAP_LIFETIME_PRICE_USD' => ''
+    }
+    previous = environment.keys.to_h { |key| [key, ENV[key]] }
+    ENV.update(environment)
+
+    harness = FastfileHarness.new do |method, path, body|
+      case [method, path]
+      when [:get, '/v1/apps/app/subscriptionGroups?limit=200']
+        collection([{ 'id' => 'group', 'attributes' => { 'referenceName' => 'Premium Access' } }])
+      when [:get, '/v1/subscriptionGroups/group/subscriptions?limit=200']
+        collection([
+          { 'id' => 'monthly', 'attributes' => { 'productId' => 'product.monthly' } },
+          { 'id' => 'quarterly', 'attributes' => { 'productId' => 'product.quarterly' } }
+        ])
+      when [:get, '/v1/subscriptions/monthly/prices?filter[territory]=USA&filter[planType]=UPFRONT&limit=200'],
+           [:get, '/v1/subscriptions/quarterly/prices?filter[territory]=USA&filter[planType]=UPFRONT&limit=200']
+        collection([{ 'id' => 'existing-price' }])
+      when [:get, '/v1/apps/app/inAppPurchasesV2?limit=200']
+        collection
+      when [:post, '/v2/inAppPurchases']
+        assert_equal 'product.lifetime', body.dig(:data, :attributes, :productId)
+        { 'data' => { 'id' => 'lifetime', 'attributes' => { 'productId' => 'product.lifetime' } } }
+      else
+        flunk "Unexpected request: #{method} #{path}"
+      end
+    end
+
+    harness.ensure_default_products(nil, Struct.new(:id).new('app'))
+    assert_includes harness.requests.map { |method, path, _| [method, path] }, [:get, '/v1/apps/app/inAppPurchasesV2?limit=200']
+  ensure
+    previous&.each { |key, value| ENV[key] = value }
+    FileUtils.remove_entry(environment['METADATA_PATH']) if environment && File.directory?(environment['METADATA_PATH'])
   end
 end
