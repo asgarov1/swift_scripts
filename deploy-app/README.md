@@ -62,6 +62,14 @@ Store version to update version-localized fields, so it may create or update
 that draft version's metadata. The default flow always skips tests; run and
 verify the relevant test suite before starting a submission.
 
+For Jlingo apps, `store-metadata/localizations.json` is also supported as the
+source of localized App Store listing text. Before Fastlane runs, `deploy-app`
+expands every locale's `appInformation` fields into the corresponding Deliver
+directories (`name.txt`, `subtitle.txt`, `description.txt`, `keywords.txt`,
+`promotional_text.txt`, and `release_notes.txt`). The JSON `subscriptions`
+section is product-localization source data; it is not an App Store listing
+field and is not uploaded by Deliver.
+
 To upload and submit, pass `--submit`; add `--release` only when that explicit
 submission should release automatically after approval:
 
