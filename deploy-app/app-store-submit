@@ -286,7 +286,10 @@ platform :ios do
       subscription = asc_request(api_key, :post, "/v1/subscriptions", body: {
         data: {
           type: "subscriptions",
-          attributes: { name: ENV.fetch(name_key), productId: product_id, subscriptionPeriod: period, reviewNote: "Unlocks the complete course.", availableInAllTerritories: true },
+          # `availableInAllTerritories` is valid for in-app purchases, but is
+          # not a subscriptions API attribute. Subscription availability is
+          # instead determined by its price configuration.
+          attributes: { name: ENV.fetch(name_key), productId: product_id, subscriptionPeriod: period, reviewNote: "Unlocks the complete course." },
           relationships: { group: { data: { type: "subscriptionGroups", id: group.fetch("id") } } }
         }
       }).fetch("data")
