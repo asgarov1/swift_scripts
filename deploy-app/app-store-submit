@@ -284,7 +284,10 @@ platform :ios do
       api_key,
       subscription_id: subscription_id,
       price: price,
-      price_points_path: "/v1/subscriptions/#{subscription_id}/pricePoints?filter[territory]=USA&limit=200",
+      # The same dollar amount has distinct point IDs for Apple's optional
+      # 12-month monthly-commitment plan and the normal upfront plan. Filter
+      # before selecting, or Apple rejects a point from the other plan type.
+      price_points_path: "/v1/subscriptions/#{subscription_id}/pricePoints?filter[territory]=USA&filter[planType]=#{plan_type}&limit=200",
       plan_type: plan_type
     )
     UI.success("Configured the USA price for subscription #{subscription_id}.")
