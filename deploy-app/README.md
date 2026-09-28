@@ -55,10 +55,12 @@ policy, or contact Apple.
   /path/to/app
 ```
 
-The default run stops after Fastlane precheck. It does not upload a build,
-attach a build to a version, or submit the app for review. The Fastlane check
-always skips tests, so run and verify the relevant test suite before starting a
-submission.
+The default run performs Fastlane precheck and uploads the staged App Store
+metadata localizations from `store-metadata/<locale>/`. It does not archive or
+upload a build, or submit the app for review. Fastlane needs an editable App
+Store version to update version-localized fields, so it may create or update
+that draft version's metadata. The default flow always skips tests; run and
+verify the relevant test suite before starting a submission.
 
 To upload and submit, pass `--submit`; add `--release` only when that explicit
 submission should release automatically after approval:
