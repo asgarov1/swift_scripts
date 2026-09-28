@@ -273,7 +273,7 @@ class FastfileTest < Minitest::Test
         assert_equal({
           name: 'Lifetime', productId: 'product.lifetime',
           inAppPurchaseType: 'NON_CONSUMABLE',
-          reviewNote: 'Unlocks lifetime access to the complete course.'
+          reviewNote: "In order to see the \"Unlock Premium\":\n\n1. Open the app\n2. Open \"Verb Conjugation\"\n3. Scroll until 3rd word\n4. Click on any part with the \"lock\" icon"
         }, body.dig(:data, :attributes))
         assert_equal({ app: { data: { type: 'apps', id: 'app' } } }, body.dig(:data, :relationships))
         lifetime = { 'id' => 'lifetime', 'attributes' => { 'productId' => 'product.lifetime' } }

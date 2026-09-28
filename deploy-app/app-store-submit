@@ -480,7 +480,7 @@ platform :ios do
             type: "subscriptions",
             # Subscription availability is configured separately through
             # subscriptionPlanAvailabilities, not as a creation attribute.
-            attributes: { name: ENV.fetch(name_key), productId: product_id, subscriptionPeriod: period, reviewNote: "Unlocks the complete course." },
+            attributes: { name: ENV.fetch(name_key), productId: product_id, subscriptionPeriod: period, reviewNote: "In order to see the \"Unlock Premium\":\n\n1. Open the app\n2. Open \"Verb Conjugation\"\n3. Scroll until 3rd word\n4. Click on any part with the \"lock\" icon" },
             relationships: { group: { data: { type: "subscriptionGroups", id: group.fetch("id") } } }
           }
         }).fetch("data")
@@ -501,7 +501,7 @@ platform :ios do
           type: "inAppPurchases",
           # The v2 creation API does not accept availableInAllTerritories.
           # Territory availability is a separate inAppPurchaseAvailabilities resource.
-          attributes: { name: ENV.fetch("IAP_LIFETIME_REFERENCE_NAME"), productId: lifetime_product_id, inAppPurchaseType: "NON_CONSUMABLE", reviewNote: "Unlocks lifetime access to the complete course." },
+          attributes: { name: ENV.fetch("IAP_LIFETIME_REFERENCE_NAME"), productId: lifetime_product_id, inAppPurchaseType: "NON_CONSUMABLE", reviewNote: "In order to see the \"Unlock Premium\":\n\n1. Open the app\n2. Open \"Verb Conjugation\"\n3. Scroll until 3rd word\n4. Click on any part with the \"lock\" icon" },
           relationships: { app: { data: { type: "apps", id: app.id } } }
         }
       }).fetch("data")
