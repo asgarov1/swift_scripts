@@ -201,6 +201,115 @@ platform :ios do
     app_store_connect_api_key(key_id: ENV.fetch("ASC_KEY_ID"), issuer_id: ENV.fetch("ASC_ISSUER_ID"), key_filepath: ENV.fetch("ASC_KEY_FILE"), duration: 1_200)
   end
 
+  def asc_collection(api_key, path)
+    asc_request(api_key, :get, path).fetch("data")
+  end
+
+  def asc_resource_with_product_id(api_key, path, product_id)
+    asc_collection(api_key, path).find { |resource| resource.dig("attributes", "productId") == product_id }
+  end
+
+  def asc_price_point(api_key, path, price)
+    wanted_price = format("%.2f", price.to_f)
+    point = asc_collection(api_key, path).find do |resource|
+      format("%.2f", resource.dig("attributes", "customerPrice").to_f) == wanted_price
+    end
+    UI.user_error!("Apple returned no USA price point for $#{wanted_price} at #{path}") unless point
+    point
+  end
+
+  def create_in_app_purchase_price_schedule(api_key, product_id:, price:, price_points_path:)
+    return if price.to_s.empty?
+
+    price_point = asc_price_point(api_key, price_points_path, price)
+    local_price_id = "${price-#{product_id.gsub(/[^A-Za-z0-9]/, "-")}-#{Time.now.to_i}"
+    schedule = {
+      data: {
+        type: "inAppPurchasePriceSchedules",
+        attributes: {},
+        relationships: {
+          inAppPurchase: { data: { type: "inAppPurchases", id: product_id } },
+          baseTerritory: { data: { type: "territories", id: "USA" } },
+          manualPrices: { data: [{ type: "inAppPurchasePrices", id: local_price_id }] }
+        }
+      },
+      included: [{
+        id: local_price_id,
+        type: "inAppPurchasePrices",
+        attributes: { startDate: nil, endDate: nil },
+        relationships: {
+          inAppPurchaseV2: { data: { type: "inAppPurchasesV2", id: product_id } },
+          inAppPurchasePricePoint: { data: { type: "inAppPurchasePricePoints", id: price_point.fetch("id") } }
+        }
+      }]
+    }
+    asc_request(api_key, :post, "/v1/inAppPurchasePriceSchedules", body: schedule)
+  end
+
+  def create_subscription_price(api_key, subscription_id:, price:, price_points_path:, plan_type:)
+    price_point = asc_price_point(api_key, price_points_path, price)
+    asc_request(api_key, :post, "/v1/subscriptionPrices", body: {
+      data: {
+        type: "subscriptionPrices",
+        attributes: { startDate: nil, planType: plan_type },
+        relationships: {
+          subscription: { data: { type: "subscriptions", id: subscription_id } },
+          subscriptionPricePoint: { data: { type: "subscriptionPricePoints", id: price_point.fetch("id") } }
+        }
+      }
+    })
+  end
+
+  def ensure_default_products(api_key, app)
+    return unless ENV.fetch("IAP_CREATE_DEFAULTS", "1") == "1"
+
+    group_name = ENV.fetch("IAP_SUBSCRIPTION_GROUP_NAME")
+    groups = asc_collection(api_key, "/v1/apps/#{app.id}/subscriptionGroups?limit=200")
+    group = groups.find { |resource| resource.dig("attributes", "referenceName") == group_name }
+    unless group
+      group = asc_request(api_key, :post, "/v1/subscriptionGroups", body: {
+        data: { type: "subscriptionGroups", attributes: { referenceName: group_name }, relationships: { app: { data: { type: "apps", id: app.id } } } }
+      }).fetch("data")
+      UI.success("Created subscription group #{group_name}.")
+    end
+
+    subscription_specs = [
+      ["IAP_MONTHLY_REFERENCE_NAME", "IAP_MONTHLY_PRODUCT_ID", "IAP_MONTHLY_PRICE_USD", "ONE_MONTH"],
+      ["IAP_QUARTERLY_REFERENCE_NAME", "IAP_QUARTERLY_PRODUCT_ID", "IAP_QUARTERLY_PRICE_USD", "THREE_MONTHS"]
+    ]
+    subscriptions_path = "/v1/subscriptionGroups/#{group.fetch("id")}/subscriptions?limit=200"
+    subscription_specs.each do |name_key, product_key, price_key, period|
+      product_id = ENV.fetch(product_key)
+      subscription = asc_resource_with_product_id(api_key, subscriptions_path, product_id)
+      next if subscription
+
+      subscription = asc_request(api_key, :post, "/v1/subscriptions", body: {
+        data: {
+          type: "subscriptions",
+          attributes: { name: ENV.fetch(name_key), productId: product_id, subscriptionPeriod: period, reviewNote: "Unlocks the complete course.", availableInAllTerritories: true },
+          relationships: { group: { data: { type: "subscriptionGroups", id: group.fetch("id") } } }
+        }
+      }).fetch("data")
+      plan_type = period == "ONE_MONTH" ? "MONTHLY" : "UPFRONT"
+      create_subscription_price(api_key, subscription_id: subscription.fetch("id"), price: ENV.fetch(price_key), price_points_path: "/v1/subscriptions/#{subscription.fetch("id")}/pricePoints?filter[territory]=USA&limit=200", plan_type: plan_type)
+      UI.success("Created subscription #{product_id}.")
+    end
+
+    lifetime_product_id = ENV.fetch("IAP_LIFETIME_PRODUCT_ID")
+    lifetime = asc_resource_with_product_id(api_key, "/v2/apps/#{app.id}/inAppPurchases?limit=200", lifetime_product_id)
+    return if lifetime
+
+    lifetime = asc_request(api_key, :post, "/v2/inAppPurchases", body: {
+      data: {
+        type: "inAppPurchases",
+        attributes: { name: ENV.fetch("IAP_LIFETIME_REFERENCE_NAME"), productId: lifetime_product_id, inAppPurchaseType: "NON_CONSUMABLE", reviewNote: "Unlocks lifetime access to the complete course.", availableInAllTerritories: true },
+        relationships: { app: { data: { type: "apps", id: app.id } } }
+      }
+    }).fetch("data")
+    create_in_app_purchase_price_schedule(api_key, product_id: lifetime.fetch("id"), price: ENV.fetch("IAP_LIFETIME_PRICE_USD", ""), price_points_path: "/v2/inAppPurchases/#{lifetime.fetch("id")}/pricePoints?filter[territory]=USA&limit=200")
+    UI.success("Created non-consumable #{lifetime_product_id}.")
+  end
+
   def staged_screenshots_are_already_uploaded?(app_identifier)
     app = Spaceship::ConnectAPI::App.find(app_identifier)
     return false unless app
@@ -230,20 +339,21 @@ platform :ios do
     # API key directly: one lookup and, only when necessary, one create call.
     api_key = app_store_connect_api_key(key_id: ENV.fetch("ASC_KEY_ID"), issuer_id: ENV.fetch("ASC_ISSUER_ID"), key_filepath: ENV.fetch("ASC_KEY_FILE"), duration: 1_200)
     app_identifier = ENV.fetch("APP_IDENTIFIER")
-    if Spaceship::ConnectAPI::App.find(app_identifier)
+    app = Spaceship::ConnectAPI::App.find(app_identifier)
+    if app
       UI.important("App Store record already exists; continuing with the remaining deployment steps.")
-      next
+    else
+      app = Spaceship::ConnectAPI::App.create(
+        name: ENV.fetch("APP_NAME"),
+        version_string: get_version_number(xcodeproj: ENV.fetch("XCODEPROJ"), target: ENV.fetch("SCHEME")),
+        sku: ENV.fetch("APP_SKU"),
+        primary_locale: ENV.fetch("ASC_PRIMARY_LOCALE", "en-US"),
+        bundle_id: app_identifier,
+        platforms: [Spaceship::ConnectAPI::Platform::IOS]
+      )
+      UI.success("Requested creation of the App Store Connect record using the API key.")
     end
-
-    Spaceship::ConnectAPI::App.create(
-      name: ENV.fetch("APP_NAME"),
-      version_string: get_version_number(xcodeproj: ENV.fetch("XCODEPROJ"), target: ENV.fetch("SCHEME")),
-      sku: ENV.fetch("APP_SKU"),
-      primary_locale: ENV.fetch("ASC_PRIMARY_LOCALE", "en-US"),
-      bundle_id: app_identifier,
-      platforms: [Spaceship::ConnectAPI::Platform::IOS]
-    )
-    UI.success("Requested creation of the App Store Connect record using the API key.")
+    ensure_default_products(api_key, app)
   end
 
   lane :check do

@@ -78,6 +78,27 @@ To set the app itself (not IAPs) to Apple's globally free 0.00 price, use:
 The bundled `app-store-submit` script is kept alongside `deploy-app`; the
 wrapper always forwards `--no-tests`.
 
+### Default in-app purchases
+
+When `--create-app` runs, the deployment helper also creates (or reuses) a
+`Premium Access` subscription group and these products by default:
+
+| Product | Default product ID | US price |
+| --- | --- | --- |
+| Monthly Subscription | `${APP_IDENTIFIER}.premium` | 6.99 USD |
+| Quarterly (3 months) Subscription | `${APP_IDENTIFIER}.premium.3months` | 14.99 USD |
+| Lifetime Access non-consumable | `${APP_IDENTIFIER}.premium.lifetime` | Set `IAP_LIFETIME_PRICE_USD` before pricing it |
+
+For example, an app whose `APP_IDENTIFIER` is
+`com.asgarovsoftware.korean_topik_i` receives the three IDs in the requested
+Korean format. The generated `.deploy-app.env` exposes `IAP_CREATE_DEFAULTS`,
+the group and product reference names, product IDs, and all prices so you can
+customize them. Set `IAP_CREATE_DEFAULTS=0` to skip this setup. Existing
+products are reused without changing their configured prices. Apple requires a
+paid non-consumable to have a price, but no lifetime price was specified here,
+so the helper creates it without scheduling a price until you set
+`IAP_LIFETIME_PRICE_USD`.
+
 ### Authentication and signing
 
 Deployments use only the configured App Store Connect API key. They never use
