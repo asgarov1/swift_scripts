@@ -386,6 +386,52 @@ platform :ios do
     UI.success("Synchronized product localizations for #{product_id}.")
   end
 
+  def sync_subscription_group_localizations(api_key, group)
+    source = File.join(ENV.fetch("METADATA_PATH"), "localizations.json")
+    return unless File.file?(source)
+
+    entries = JSON.parse(File.read(source)).map do |locale, values|
+      explicit = values.key?("subscriptionGroup")
+      text = explicit ? values["subscriptionGroup"] : { "displayName" => values.dig("appInformation", "name") }
+      unless text.is_a?(Hash) && text["displayName"].is_a?(String) && !text["displayName"].strip.empty? && text["displayName"].length <= 75
+        UI.user_error!("Invalid subscription group displayName for #{locale} in #{source} (1–75 characters required)")
+      end
+      attributes = { name: text.fetch("displayName") }
+      if text.key?("customAppName")
+        custom_name = text["customAppName"]
+        unless custom_name.nil? || (custom_name.is_a?(String) && !custom_name.strip.empty? && custom_name.length <= 30)
+          UI.user_error!("Invalid subscription group customAppName for #{locale} in #{source} (1–30 characters or null required)")
+        end
+        attributes[:customAppName] = custom_name
+      end
+      [locale, attributes, explicit]
+    end
+    return if entries.empty?
+
+    type = "subscriptionGroupLocalizations"
+    existing = asc_collection(api_key, "/v1/subscriptionGroups/#{group.fetch("id")}/#{type}?limit=200")
+    entries.each do |locale, attributes, explicit|
+      localization = existing.find { |item| item.dig("attributes", "locale") == locale }
+      if localization
+        # Only explicitly configured group text is authoritative. A localized
+        # app-name default fills gaps without replacing an editorial choice.
+        next unless explicit
+        next if attributes.all? { |key, value| localization.dig("attributes", key.to_s) == value }
+        asc_request(api_key, :patch, "/v1/#{type}/#{localization.fetch("id")}", body: {
+          data: { type: type, id: localization.fetch("id"), attributes: attributes }
+        })
+      else
+        asc_request(api_key, :post, "/v1/#{type}", body: {
+          data: {
+            type: type, attributes: attributes.merge(locale: locale),
+            relationships: { subscriptionGroup: { data: { type: "subscriptionGroups", id: group.fetch("id") } } }
+          }
+        })
+      end
+    end
+    UI.success("Synchronized subscription group localizations for #{group.fetch("id")}.")
+  end
+
   def ensure_default_products(api_key, app)
     return unless ENV.fetch("IAP_CREATE_DEFAULTS", "1") == "1"
 
@@ -408,6 +454,8 @@ platform :ios do
       }).fetch("data")
       UI.success("Created subscription group #{group_name}.")
     end
+
+    sync_subscription_group_localizations(api_key, group)
 
     subscription_specs = [
       ["IAP_MONTHLY_REFERENCE_NAME", "IAP_MONTHLY_PRODUCT_ID", "IAP_MONTHLY_PRICE_USD", "ONE_MONTH"],

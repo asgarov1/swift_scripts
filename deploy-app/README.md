@@ -122,6 +122,20 @@ API resource lists follow pagination so reruns also find items beyond page one.
 Listing localizations are regenerated
 deterministically from `localizations.json` on every run, including `en-US`.
 
+Each locale in `localizations.json` also configures the subscription group's
+**Display Name and Description** section. Set `subscriptionGroup.displayName`
+(maximum 75 characters) and optionally `subscriptionGroup.customAppName`
+(maximum 30 characters; `null` restores the app's name). Explicit group fields
+are authoritative and synchronized on reruns. When no `subscriptionGroup` is
+provided, the localized `appInformation.name` fills missing group localizations
+without overwriting existing values. Omitting `customAppName` preserves Apple's
+app-name display setting. Apple exposes no description field for groups;
+individual product names and descriptions come from `subscriptions`.
+
+```json
+"subscriptionGroup": { "displayName": "Premium Access" }
+```
+
 ### Authentication and signing
 
 Deployments use only the configured App Store Connect API key. They never use

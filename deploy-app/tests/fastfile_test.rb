@@ -93,6 +93,92 @@ class FastfileTest < Minitest::Test
     assert_equal 2, harness.requests.size
   end
 
+  def test_group_localizations_resume_after_failure_and_preserve_editorial_defaults
+    previous = ENV['METADATA_PATH']
+    Dir.mktmpdir do |directory|
+      ENV['METADATA_PATH'] = directory
+      File.write(File.join(directory, 'localizations.json'), JSON.generate({
+        'en-US' => { 'subscriptionGroup' => { 'displayName' => 'Premium Access', 'customAppName' => nil } },
+        'de-DE' => { 'appInformation' => { 'name' => 'Koreanisch' } },
+        'fr-FR' => { 'subscriptionGroup' => { 'displayName' => 'Accès premium' } }
+      }))
+      remote = [
+        { 'id' => 'en', 'attributes' => { 'locale' => 'en-US', 'name' => 'Old', 'customAppName' => 'Old app' } },
+        { 'id' => 'de', 'attributes' => { 'locale' => 'de-DE', 'name' => 'Reviewed name' } }
+      ]
+      attempts = 0
+      harness = FastfileHarness.new do |method, path, body|
+        case method
+        when :get
+          assert_equal '/v1/subscriptionGroups/group/subscriptionGroupLocalizations?limit=200', path
+          collection(remote)
+        when :patch
+          assert_equal '/v1/subscriptionGroupLocalizations/en', path
+          remote.first['attributes'].merge!(body[:data][:attributes].transform_keys(&:to_s))
+          {}
+        when :post
+          assert_equal '/v1/subscriptionGroupLocalizations', path
+          assert_equal({ type: 'subscriptionGroups', id: 'group' }, body.dig(:data, :relationships, :subscriptionGroup, :data))
+          refute body[:data][:attributes].key?(:customAppName)
+          attempts += 1
+          raise 'Temporary failure' if attempts == 1
+          remote << { 'id' => 'fr', 'attributes' => body[:data][:attributes].transform_keys(&:to_s) }
+          {}
+        end
+      end
+      assert_raises(RuntimeError) { harness.sync_subscription_group_localizations(nil, { 'id' => 'group' }) }
+      2.times { harness.sync_subscription_group_localizations(nil, { 'id' => 'group' }) }
+      assert_equal 1, harness.requests.count { |method, _, _| method == :patch }
+      assert_equal 2, attempts
+      assert_nil remote.first['attributes']['customAppName']
+      assert_equal 'Reviewed name', remote[1]['attributes']['name']
+    end
+  ensure
+    ENV['METADATA_PATH'] = previous
+  end
+
+  def test_group_localizations_fill_missing_locale_with_localized_app_name
+    previous = ENV['METADATA_PATH']
+    Dir.mktmpdir do |directory|
+      ENV['METADATA_PATH'] = directory
+      File.write(File.join(directory, 'localizations.json'), JSON.generate({
+        'de-DE' => { 'appInformation' => { 'name' => 'Koreanisch TOPIK I' } }
+      }))
+      harness = FastfileHarness.new do |method, _, body|
+        if method == :get
+          collection
+        else
+          assert_equal :post, method
+          assert_equal({ name: 'Koreanisch TOPIK I', locale: 'de-DE' }, body[:data][:attributes])
+          {}
+        end
+      end
+      harness.sync_subscription_group_localizations(nil, { 'id' => 'group' })
+      assert_equal 2, harness.requests.size
+    end
+  ensure
+    ENV['METADATA_PATH'] = previous
+  end
+
+  def test_group_localizations_validate_all_entries_before_writing
+    previous = ENV['METADATA_PATH']
+    Dir.mktmpdir do |directory|
+      ENV['METADATA_PATH'] = directory
+      [nil, {}, { 'displayName' => ' ' }, { 'displayName' => 'x' * 76 },
+       { 'displayName' => 'Access', 'customAppName' => 'x' * 31 }].each do |invalid|
+        File.write(File.join(directory, 'localizations.json'), JSON.generate({
+          'en-US' => { 'subscriptionGroup' => { 'displayName' => 'Access' } },
+          'de-DE' => { 'subscriptionGroup' => invalid }
+        }))
+        harness = FastfileHarness.new { |*| flunk 'Invalid input must not contact Apple' }
+        assert_raises(RuntimeError) { harness.sync_subscription_group_localizations(nil, { 'id' => 'group' }) }
+        assert_empty harness.requests
+      end
+    end
+  ensure
+    ENV['METADATA_PATH'] = previous
+  end
+
   def test_product_localizations_create_update_and_skip_unchanged
     previous = ENV['METADATA_PATH']
     Dir.mktmpdir do |directory|
