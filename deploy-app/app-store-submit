@@ -236,7 +236,13 @@ platform :ios do
     return if price.to_s.empty?
 
     price_point = asc_price_point(api_key, price_points_path, price)
-    local_price_id = "${price-#{product_id.gsub(/[^A-Za-z0-9]/, "-")}-#{Time.now.to_i}"
+    # App Store Connect only accepts JSON:API local resource IDs for inline
+    # creations here. Its accepted form uses an alphanumeric local token
+    # inside `${...}` (for example, Apple's `${price1}` documentation
+    # example); hyphenated, generated tokens are rejected with a 409.
+    # This request contains a single inline price, so a stable local ID is
+    # sufficient and makes retries deterministic.
+    local_price_id = "${price1}"
     schedule = {
       data: {
         type: "inAppPurchasePriceSchedules",

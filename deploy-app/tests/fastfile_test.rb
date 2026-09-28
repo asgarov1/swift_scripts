@@ -290,4 +290,22 @@ class FastfileTest < Minitest::Test
     previous&.each { |key, value| ENV[key] = value }
     FileUtils.remove_entry(environment['METADATA_PATH']) if environment && File.directory?(environment['METADATA_PATH'])
   end
+
+  def test_inline_in_app_purchase_price_uses_an_accepted_local_id
+    harness = FastfileHarness.new do |method, path, body|
+      case [method, path]
+      when [:get, '/price-points']
+        collection([{ 'id' => 'price-point', 'attributes' => { 'customerPrice' => '29.99' } }])
+      when [:post, '/v1/inAppPurchasePriceSchedules']
+        local_price_id = body.dig(:data, :relationships, :manualPrices, :data, 0, :id)
+        assert_equal '${price1}', local_price_id
+        assert_equal local_price_id, body.dig(:included, 0, :id)
+        {}
+      else
+        flunk "Unexpected request: #{method} #{path}"
+      end
+    end
+
+    harness.create_in_app_purchase_price_schedule(nil, product_id: '6816897818', price: '29.99', price_points_path: '/price-points')
+  end
 end
