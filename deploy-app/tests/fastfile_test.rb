@@ -29,6 +29,28 @@ class FastfileHarness
 end
 
 class FastfileTest < Minitest::Test
+  def test_overlong_product_name_is_rejected_before_any_localization_request
+    previous = ENV['METADATA_PATH']
+    Dir.mktmpdir do |directory|
+      ENV['METADATA_PATH'] = directory
+      File.write(File.join(directory, 'localizations.json'), JSON.generate({
+        'en-US' => { 'subscriptions' => { 'product' => { 'displayName' => 'Valid', 'description' => 'All lessons' } } },
+        'de-DE' => { 'subscriptions' => { 'product' => { 'displayName' => 'ü' * 36, 'description' => 'Alle Lektionen' } } }
+      }))
+      [true, false].each do |subscription|
+        harness = FastfileHarness.new { |*| flunk 'Invalid names must not reach Apple' }
+        error = assert_raises(RuntimeError) do
+          harness.sync_product_localizations(nil, { 'id' => 'id', 'attributes' => { 'productId' => 'product' } }, subscription: subscription)
+        end
+        assert_includes error.message, 'product (de-DE)'
+        assert_includes error.message, '36 characters; maximum is 35'
+        assert_empty harness.requests
+      end
+    end
+  ensure
+    ENV['METADATA_PATH'] = previous
+  end
+
   def collection(data = [], next_url = nil)
     { 'data' => data, 'links' => { 'next' => next_url } }
   end

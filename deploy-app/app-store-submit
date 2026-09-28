@@ -356,6 +356,9 @@ platform :ios do
       unless text.is_a?(Hash) && %w[displayName description].all? { |key| text[key].is_a?(String) && !text[key].strip.empty? }
         UI.user_error!("Invalid product localization for #{product_id} (#{locale}) in #{source}")
       end
+      if text.fetch("displayName").length > 35
+        UI.user_error!("Product displayName for #{product_id} (#{locale}) in #{source} is #{text.fetch('displayName').length} characters; maximum is 35: #{text.fetch('displayName').inspect}")
+      end
       [locale, { name: text.fetch("displayName"), description: text.fetch("description") }]
     end.compact
     return if entries.empty?
