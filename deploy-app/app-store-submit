@@ -272,8 +272,12 @@ platform :ios do
     asc_collection(api_key, "/v1/subscriptions/#{subscription_id}/prices?filter[territory]=USA&filter[planType]=#{plan_type}&limit=200").any?
   end
 
-  def ensure_subscription_price(api_key, subscription_id:, price:, period:)
-    plan_type = period == "ONE_MONTH" ? "MONTHLY" : "UPFRONT"
+  def ensure_subscription_price(api_key, subscription_id:, price:)
+    # `MONTHLY` is Apple’s optional monthly billing for a 12-month commitment,
+    # not a standard one-month subscription. It is unavailable in USA (and
+    # Singapore), whereas normal auto-renewable subscriptions of any period
+    # use the upfront plan.
+    plan_type = "UPFRONT"
     return if subscription_has_price?(api_key, subscription_id, plan_type)
 
     create_subscription_price(
@@ -337,7 +341,7 @@ platform :ios do
         }).fetch("data")
         UI.success("Created subscription #{product_id}.")
       end
-      ensure_subscription_price(api_key, subscription_id: subscription.fetch("id"), price: ENV.fetch(price_key), period: period)
+      ensure_subscription_price(api_key, subscription_id: subscription.fetch("id"), price: ENV.fetch(price_key))
     end
 
     lifetime_product_id = ENV.fetch("IAP_LIFETIME_PRODUCT_ID")
