@@ -9,6 +9,14 @@ module UI
   def self.important(message); end
 end
 
+module Spaceship
+  module ConnectAPI
+    class Token
+      def self.create(**); Struct.new(:text).new('test-token'); end
+    end
+  end
+end
+
 class FastfileHarness
   def self.default_platform(*); end
   def self.platform(*); yield; end
@@ -16,19 +24,81 @@ class FastfileHarness
   source = File.read(File.expand_path('../app-store-submit', __dir__))
   fastfile = source.split("<<'RUBY'\n", 2).last.split("\nRUBY\n", 2).first
   class_eval(fastfile, 'generated Fastfile')
+  alias_method :real_asc_request, :asc_request
 
   attr_reader :requests
   def initialize(&handler)
     @requests = []
     @handler = handler
   end
-  def asc_request(key, method, path, body: nil)
+  def asc_request(key, method, path, body: nil, allow_not_found: false)
     @requests << [method, path, body]
     @handler.call(method, path, body)
   end
 end
 
 class FastfileTest < Minitest::Test
+  def with_http(http)
+    original = Net::HTTP.method(:start)
+    Net::HTTP.define_singleton_method(:start) { |*args, **kwargs, &block| block.call(http) }
+    yield
+  ensure
+    Net::HTTP.define_singleton_method(:start, original)
+  end
+
+  def test_missing_lifetime_schedule_is_created_once_and_existing_schedule_is_preserved
+    harness = FastfileHarness.new
+    harness.define_singleton_method(:asc_request) do |*args, **kwargs|
+      real_asc_request(*args, **kwargs)
+    end
+    priced = false
+    creations = 0
+    test_case = self
+    http = Object.new
+    http.define_singleton_method(:request) do |request|
+      code, body = case [request.method, request.path.split('?').first]
+      when ['GET', '/v2/inAppPurchases/lifetime/relationships/iapPriceSchedule']
+        priced ? ['200', { data: { id: 'schedule' } }] : ['404', { errors: [{ code: 'NOT_FOUND' }] }]
+      when ['GET', '/v2/inAppPurchases/lifetime/pricePoints']
+        ['200', { data: [{ id: 'point', attributes: { customerPrice: '29.99' } }] }]
+      when ['POST', '/v1/inAppPurchasePriceSchedules']
+        request_body = JSON.parse(request.body)
+        local_price_id = request_body.dig('data', 'relationships', 'manualPrices', 'data', 0, 'id')
+        test_case.assert_equal '${price1}', local_price_id
+        test_case.assert_equal local_price_id, request_body.dig('included', 0, 'id')
+        creations += 1
+        priced = true
+        ['201', { data: { id: 'schedule' } }]
+      else
+        raise "Unexpected request: #{request.method} #{request.path}"
+      end
+      response = Net::HTTPResponse::CODE_TO_OBJ.fetch(code).new('1.1', code, '')
+      response.define_singleton_method(:body) { JSON.generate(body) }
+      response
+    end
+    with_http(http) do
+      2.times { harness.ensure_in_app_purchase_price_schedule({}, product_id: 'lifetime', price: '29.99') }
+    end
+    assert_equal 1, creations
+  end
+
+  def test_optional_missing_relationship_does_not_hide_other_failures
+    harness = FastfileHarness.new
+    ['403', '404'].each do |code|
+      response = Net::HTTPResponse::CODE_TO_OBJ.fetch(code).new('1.1', code, '')
+      response.define_singleton_method(:body) { '{"errors":[]}' }
+      http = Object.new
+      http.define_singleton_method(:request) { |request| response }
+      with_http(http) do
+        assert_raises(RuntimeError) { harness.real_asc_request({}, :get, '/unrelated') }
+        assert_raises(RuntimeError) { harness.real_asc_request({}, :post, '/schedule', allow_not_found: true) }
+        if code == '403'
+          assert_raises(RuntimeError) { harness.real_asc_request({}, :get, '/schedule', allow_not_found: true) }
+        end
+      end
+    end
+  end
+
   def test_overlong_product_name_is_rejected_before_any_localization_request
     previous = ENV['METADATA_PATH']
     Dir.mktmpdir do |directory|
@@ -129,24 +199,37 @@ class FastfileTest < Minitest::Test
         { 'id' => 'en', 'attributes' => { 'locale' => 'en-US', 'name' => 'Old', 'customAppName' => 'Old app' } },
         { 'id' => 'de', 'attributes' => { 'locale' => 'de-DE', 'name' => 'Reviewed name' } }
       ]
+      versions = []
       attempts = 0
       harness = FastfileHarness.new do |method, path, body|
         case method
         when :get
-          assert_equal '/v1/subscriptionGroups/group/subscriptionGroupLocalizations?limit=200', path
-          collection(remote)
+          case path
+          when '/v1/subscriptionGroups/group/versions?limit=200'
+            collection(versions)
+          when '/v1/subscriptionGroupVersions/draft/localizations?limit=200'
+            collection(remote)
+          else
+            flunk "Unexpected GET: #{path}"
+          end
         when :patch
-          assert_equal '/v1/subscriptionGroupLocalizations/en', path
+          assert_equal '/v2/subscriptionGroupLocalizations/en', path
           remote.first['attributes'].merge!(body[:data][:attributes].transform_keys(&:to_s))
           {}
         when :post
-          assert_equal '/v1/subscriptionGroupLocalizations', path
-          assert_equal({ type: 'subscriptionGroups', id: 'group' }, body.dig(:data, :relationships, :subscriptionGroup, :data))
-          refute body[:data][:attributes].key?(:customAppName)
-          attempts += 1
-          raise 'Temporary failure' if attempts == 1
-          remote << { 'id' => 'fr', 'attributes' => body[:data][:attributes].transform_keys(&:to_s) }
-          {}
+          if path == '/v1/subscriptionGroupVersions'
+            assert_equal({ type: 'subscriptionGroups', id: 'group' }, body.dig(:data, :relationships, :subscriptionGroup, :data))
+            versions << { 'id' => 'draft', 'attributes' => { 'state' => 'PREPARE_FOR_SUBMISSION' } }
+            { 'data' => versions.first }
+          else
+            assert_equal '/v2/subscriptionGroupLocalizations', path
+            assert_equal({ type: 'subscriptionGroupVersions', id: 'draft' }, body.dig(:data, :relationships, :version, :data))
+            refute body[:data][:attributes].key?(:customAppName)
+            attempts += 1
+            raise 'Temporary failure' if attempts == 1
+            remote << { 'id' => 'fr', 'attributes' => body[:data][:attributes].transform_keys(&:to_s) }
+            {}
+          end
         end
       end
       assert_raises(RuntimeError) { harness.sync_subscription_group_localizations(nil, { 'id' => 'group' }) }
@@ -167,17 +250,24 @@ class FastfileTest < Minitest::Test
       File.write(File.join(directory, 'localizations.json'), JSON.generate({
         'de-DE' => { 'appInformation' => { 'name' => 'Koreanisch TOPIK I' } }
       }))
-      harness = FastfileHarness.new do |method, _, body|
-        if method == :get
+      harness = FastfileHarness.new do |method, path, body|
+        case [method, path]
+        when [:get, '/v1/subscriptionGroups/group/versions?limit=200'],
+             [:get, '/v1/subscriptionGroupVersions/draft/localizations?limit=200']
           collection
-        else
-          assert_equal :post, method
+        when [:post, '/v1/subscriptionGroupVersions']
+          assert_equal({ type: 'subscriptionGroups', id: 'group' }, body.dig(:data, :relationships, :subscriptionGroup, :data))
+          { 'data' => { 'id' => 'draft', 'attributes' => { 'state' => 'PREPARE_FOR_SUBMISSION' } } }
+        when [:post, '/v2/subscriptionGroupLocalizations']
           assert_equal({ name: 'Koreanisch TOPIK I', locale: 'de-DE' }, body[:data][:attributes])
+          assert_equal({ type: 'subscriptionGroupVersions', id: 'draft' }, body.dig(:data, :relationships, :version, :data))
           {}
+        else
+          flunk "Unexpected request: #{method} #{path}"
         end
       end
       harness.sync_subscription_group_localizations(nil, { 'id' => 'group' })
-      assert_equal 2, harness.requests.size
+      assert_equal 4, harness.requests.size
     end
   ensure
     ENV['METADATA_PATH'] = previous
@@ -212,15 +302,23 @@ class FastfileTest < Minitest::Test
       }))
       [true, false].each do |subscription|
         remote = [{ 'id' => 'existing', 'attributes' => { 'locale' => 'en-US', 'name' => 'Old', 'description' => 'Old' } }]
+        version_type = subscription ? 'subscriptionVersions' : 'inAppPurchaseVersions'
+        versions = [{ 'id' => 'draft', 'attributes' => { 'state' => 'PREPARE_FOR_SUBMISSION' } }]
         harness = FastfileHarness.new do |method, path, body|
           case method
-          when :get then collection(remote)
+          when :get
+            if path.end_with?('/versions?limit=200')
+              collection(versions)
+            else
+              assert_equal "/v1/#{version_type}/draft/localizations?limit=200", path
+              collection(remote)
+            end
           when :patch
+            assert_equal "/v2/#{subscription ? 'subscriptionLocalizations' : 'inAppPurchaseLocalizations'}/existing", path
             remote.first['attributes'].merge!(body.fetch(:data).fetch(:attributes).transform_keys(&:to_s))
             {}
           when :post
-            expected_relation = subscription ? :subscription : :inAppPurchaseV2
-            assert_equal 'remote-product', body.dig(:data, :relationships, expected_relation, :data, :id)
+            assert_equal({ type: version_type, id: 'draft' }, body.dig(:data, :relationships, :version, :data))
             remote << { 'id' => 'new', 'attributes' => body.fetch(:data).fetch(:attributes).transform_keys(&:to_s) }
             {}
           end

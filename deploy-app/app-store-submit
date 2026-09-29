@@ -187,7 +187,7 @@ require "net/http"
 require "uri"
 
 platform :ios do
-  def asc_request(api_key, method, path, body: nil)
+  def asc_request(api_key, method, path, body: nil, allow_not_found: false)
     token = Spaceship::ConnectAPI::Token.create(**api_key).text
     uri = URI.join("https://api.appstoreconnect.apple.com", path)
     unless uri.scheme == "https" && uri.host == "api.appstoreconnect.apple.com" && uri.port == 443
@@ -198,7 +198,36 @@ platform :ios do
     request["Authorization"] = "Bearer #{token}"
     request["Content-Type"] = "application/json" if body
     request.body = JSON.generate(body) if body
-    response = Net::HTTP.start(uri.host, uri.port, use_ssl: true) { |http| http.request(request) }
+
+    # App Store Connect can briefly time out while a newly-created IAP becomes
+    # available to its related-resource endpoints. Retry only requests which
+    # are safe to replay; a timed-out POST might have completed server-side.
+    attempts = 0
+    response = nil
+    loop do
+      attempts += 1
+      retry_reason = nil
+      begin
+        response = Net::HTTP.start(uri.host, uri.port, use_ssl: true, open_timeout: 15, read_timeout: 75) do |http|
+          http.request(request)
+        end
+        if %i[get patch].include?(method) && attempts < 4 && (response.code == "429" || response.code.to_i >= 500)
+          retry_reason = "returned #{response.code}"
+        end
+      rescue Net::OpenTimeout, Net::ReadTimeout, SocketError, Errno::ECONNRESET, EOFError => error
+        raise unless %i[get patch].include?(method) && attempts < 4
+
+        retry_reason = "timed out (#{error.class})"
+      end
+
+      break unless retry_reason
+
+      delay = attempts * 2
+      UI.important("App Store Connect #{method.to_s.upcase} #{path} #{retry_reason}; retrying in #{delay}s (attempt #{attempts}/4).")
+      sleep(delay)
+    end
+    return { "data" => nil } if allow_not_found && method == :get && response.is_a?(Net::HTTPNotFound)
+
     unless response.is_a?(Net::HTTPSuccess)
       UI.user_error!("App Store Connect #{method.to_s.upcase} #{path} failed (#{response.code}): #{response.body}")
     end
@@ -331,7 +360,9 @@ platform :ios do
   end
 
   def in_app_purchase_has_price_schedule?(api_key, product_id)
-    response = asc_request(api_key, :get, "/v2/inAppPurchases/#{product_id}/relationships/iapPriceSchedule")
+    # Apple returns 404 for this relationship until the first schedule exists.
+    # The product itself has already been found or created by the caller.
+    response = asc_request(api_key, :get, "/v2/inAppPurchases/#{product_id}/relationships/iapPriceSchedule", allow_not_found: true)
     !response.fetch("data", nil).nil?
   end
 
@@ -365,25 +396,36 @@ platform :ios do
     end.compact
     return if entries.empty?
 
-    # The v1 localization API remains supported for existing integrations and
-    # avoids creating review versions as a side effect of this setup flow.
     type = subscription ? "subscriptionLocalizations" : "inAppPurchaseLocalizations"
-    parent_path = subscription ? "/v1/subscriptions" : "/v2/inAppPurchases"
-    relationship = subscription ? :subscription : :inAppPurchaseV2
-    parent_type = subscription ? "subscriptions" : "inAppPurchases"
-    existing = asc_collection(api_key, "#{parent_path}/#{product.fetch("id")}/#{type}?limit=200")
+    version_parent_path = subscription ? "/v1/subscriptions" : "/v2/inAppPurchases"
+    version_type = subscription ? "subscriptionVersions" : "inAppPurchaseVersions"
+    version_create_path = subscription ? "/v1/subscriptionVersions" : "/v1/inAppPurchaseVersions"
+    version_relationship = subscription ? :subscription : :inAppPurchase
+    versions = asc_collection(api_key, "#{version_parent_path}/#{product.fetch("id")}/versions?limit=200")
+    version = versions.find { |item| item.dig("attributes", "state") == "PREPARE_FOR_SUBMISSION" }
+    unless version
+      version = asc_request(api_key, :post, version_create_path, body: {
+        data: {
+          type: version_type,
+          relationships: { version_relationship => { data: { type: subscription ? "subscriptions" : "inAppPurchases", id: product.fetch("id") } } }
+        }
+      }).fetch("data")
+      UI.success("Created draft #{version_type} #{version.fetch("id")}.")
+    end
+
+    existing = asc_collection(api_key, "/v1/#{version_type}/#{version.fetch("id")}/localizations?limit=200")
     entries.each do |locale, attributes|
       localization = existing.find { |item| item.dig("attributes", "locale") == locale }
       if localization
         next if attributes.all? { |key, value| localization.dig("attributes", key.to_s) == value }
-        asc_request(api_key, :patch, "/v1/#{type}/#{localization.fetch("id")}", body: {
+        asc_request(api_key, :patch, "/v2/#{type}/#{localization.fetch("id")}", body: {
           data: { type: type, id: localization.fetch("id"), attributes: attributes }
         })
       else
-        asc_request(api_key, :post, "/v1/#{type}", body: {
+        asc_request(api_key, :post, "/v2/#{type}", body: {
           data: {
             type: type, attributes: attributes.merge(locale: locale),
-            relationships: { relationship => { data: { type: parent_type, id: product.fetch("id") } } }
+            relationships: { version: { data: { type: version_type, id: version.fetch("id") } } }
           }
         })
       end
@@ -413,8 +455,25 @@ platform :ios do
     end
     return if entries.empty?
 
+    # Subscription group localizations are versioned in App Store Connect API
+    # 4.4.1. The legacy v1 endpoint rejects newer locales (for example,
+    # Bulgarian) even when they are valid App Store listing localizations.
+    # Reuse a draft version so a partial precheck can resume safely; create a
+    # new draft only when the group has no editable version.
+    versions = asc_collection(api_key, "/v1/subscriptionGroups/#{group.fetch("id")}/versions?limit=200")
+    version = versions.find { |item| item.dig("attributes", "state") == "PREPARE_FOR_SUBMISSION" }
+    unless version
+      version = asc_request(api_key, :post, "/v1/subscriptionGroupVersions", body: {
+        data: {
+          type: "subscriptionGroupVersions",
+          relationships: { subscriptionGroup: { data: { type: "subscriptionGroups", id: group.fetch("id") } } }
+        }
+      }).fetch("data")
+      UI.success("Created draft subscription group version #{version.fetch("id")}.")
+    end
+
     type = "subscriptionGroupLocalizations"
-    existing = asc_collection(api_key, "/v1/subscriptionGroups/#{group.fetch("id")}/#{type}?limit=200")
+    existing = asc_collection(api_key, "/v1/subscriptionGroupVersions/#{version.fetch("id")}/localizations?limit=200")
     entries.each do |locale, attributes, explicit|
       localization = existing.find { |item| item.dig("attributes", "locale") == locale }
       if localization
@@ -422,14 +481,14 @@ platform :ios do
         # app-name default fills gaps without replacing an editorial choice.
         next unless explicit
         next if attributes.all? { |key, value| localization.dig("attributes", key.to_s) == value }
-        asc_request(api_key, :patch, "/v1/#{type}/#{localization.fetch("id")}", body: {
+        asc_request(api_key, :patch, "/v2/#{type}/#{localization.fetch("id")}", body: {
           data: { type: type, id: localization.fetch("id"), attributes: attributes }
         })
       else
-        asc_request(api_key, :post, "/v1/#{type}", body: {
+        asc_request(api_key, :post, "/v2/#{type}", body: {
           data: {
             type: type, attributes: attributes.merge(locale: locale),
-            relationships: { subscriptionGroup: { data: { type: "subscriptionGroups", id: group.fetch("id") } } }
+            relationships: { version: { data: { type: "subscriptionGroupVersions", id: version.fetch("id") } } }
           }
         })
       end

@@ -79,8 +79,9 @@ app, subscription-group, and in-app-purchase localizations. Its top-level keys
 must use Apple’s exact shortcodes. The set is mixed: some languages require a
 language-and-region code, while others require a bare language code. Do not
 apply a blanket BCP 47 expansion or rely on Fastlane to transform an alias
-before the API request: App Store Connect rejects unsupported raw values such
-as `ar`, `bg`, and `tr-TR`.
+before the API request. In particular, the deprecated v1 subscription and
+subscription-group localization endpoints reject newer locales such as
+Bulgarian regardless of shortcode spelling; use the version-based v2 APIs.
 
 Use the exact code Apple expects for the storefront language. For example,
 German A1 uses:
@@ -91,9 +92,12 @@ hu     it     pl     ru     tr     uk
 ```
 
 Before adding a locale, verify its current shortcode in Apple’s App Store
-Connect localization reference. Validate every source JSON key before a live
-deployment; a `--dry-run` validates the helper’s staging, while the API call
-is the final validation of Apple’s accepted locale list.
+Connect localization reference. Use `SubscriptionVersion` and
+`SubscriptionGroupVersion` draft resources with v2 localization endpoints;
+do not post new localizations directly to the deprecated v1 parent resources.
+Validate every source JSON key before a live deployment; a `--dry-run`
+validates the helper’s staging, while the API call is the final validation of
+Apple’s accepted locale list.
 
 When creating or translating `store-metadata/localizations.json` (or the
 equivalent `DEPLOY_ENV` metadata), preserve the source meaning but make each
