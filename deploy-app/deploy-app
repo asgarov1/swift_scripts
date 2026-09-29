@@ -278,8 +278,15 @@ interactive_setup() {
   identifier="$(project_value PRODUCT_BUNDLE_IDENTIFIER)"
   app_name="$(app_config_value 's/.*appName:[[:space:]]*"([^"]+)".*/\1/p')"
   language="$(app_config_value 's/.*learningLanguage:[[:space:]]*\.([[:alpha:]]+).*/\1/p')"
+  # Current Jlingo apps declare their learning language as a user-facing
+  # string. Retain support for the original enum-style configuration while
+  # inferring the same deployment default from languageName when present.
+  [[ -n "$language" ]] || language="$(app_config_value 's/.*languageName:[[:space:]]*"([^"]+)".*/\1/p')"
   [[ -n "$language" ]] && language="$(printf '%s' "$language" | awk '{ print toupper(substr($0, 1, 1)) substr($0, 2) }')"
   language_level="$(app_config_value 's/.*certificateLevel:[[:space:]]*"([^"]+)".*/\1/p')"
+  # AppConfig commonly embeds a CEFR level in the App Store name instead of a
+  # separate certificateLevel. Use that final token as the setup default.
+  [[ -n "$language_level" ]] || language_level="$(app_config_value 's/.*appName:[[:space:]]*".* ([ABC][0-9])".*/\1/p')"
   privacy_source="$(find "$PROJECT_DIR" -maxdepth 1 -type f -iname '*privacy*.md' -print -quit)"
   privacy_source="${privacy_source#"$PROJECT_DIR/"}"
   privacy_repo="$(find_privacy_policies_repo || true)"
