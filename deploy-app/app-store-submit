@@ -200,17 +200,6 @@ platform :ios do
     request.body = JSON.generate(body) if body
     response = Net::HTTP.start(uri.host, uri.port, use_ssl: true) { |http| http.request(request) }
     unless response.is_a?(Net::HTTPSuccess)
-      begin
-        error_response = JSON.parse(response.body)
-      rescue JSON::ParserError
-        error_response = {}
-      end
-      if @allow_unsupported_iap_locale && response&.code == "409" &&
-          error_response.fetch("errors", []).any? { |error| error["code"] == "ENTITY_ERROR.SUBSCRIPTION_GROUP_LOCALIZATION_UNSUPPORTED_LOCALE_CODE" || error["code"] == "ENTITY_ERROR.SUBSCRIPTION_LOCALIZATION_UNSUPPORTED_LOCALE_CODE" }
-        locale = body.dig(:data, :attributes, :locale)
-        UI.important("App Store Connect does not support #{locale} for this in-app-purchase localization; skipped it while preserving the app's listing localization.")
-        return { "data" => nil, "skippedUnsupportedLocale" => true }
-      end
       UI.user_error!("App Store Connect #{method.to_s.upcase} #{path} failed (#{response.code}): #{response.body}")
     end
     response.body.to_s.empty? ? {} : JSON.parse(response.body)
@@ -228,14 +217,6 @@ platform :ios do
       path = response.dig("links", "next")
     end
     resources
-  end
-
-  def with_unsupported_iap_locale_allowed
-    previous = @allow_unsupported_iap_locale
-    @allow_unsupported_iap_locale = true
-    yield
-  ensure
-    @allow_unsupported_iap_locale = previous
   end
 
   def asc_resource_with_product_id(api_key, path, product_id)
@@ -399,12 +380,12 @@ platform :ios do
           data: { type: type, id: localization.fetch("id"), attributes: attributes }
         })
       else
-        with_unsupported_iap_locale_allowed { asc_request(api_key, :post, "/v1/#{type}", body: {
+        asc_request(api_key, :post, "/v1/#{type}", body: {
           data: {
             type: type, attributes: attributes.merge(locale: locale),
             relationships: { relationship => { data: { type: parent_type, id: product.fetch("id") } } }
           }
-        }) }
+        })
       end
     end
     UI.success("Synchronized product localizations for #{product_id}.")
@@ -445,12 +426,12 @@ platform :ios do
           data: { type: type, id: localization.fetch("id"), attributes: attributes }
         })
       else
-        with_unsupported_iap_locale_allowed { asc_request(api_key, :post, "/v1/#{type}", body: {
+        asc_request(api_key, :post, "/v1/#{type}", body: {
           data: {
             type: type, attributes: attributes.merge(locale: locale),
             relationships: { subscriptionGroup: { data: { type: "subscriptionGroups", id: group.fetch("id") } } }
           }
-        }) }
+        })
       end
     end
     UI.success("Synchronized subscription group localizations for #{group.fetch("id")}.")

@@ -132,12 +132,6 @@ without overwriting existing values. Omitting `customAppName` preserves Apple's
 app-name display setting. Apple exposes no description field for groups;
 individual product names and descriptions come from `subscriptions`.
 
-App Store listing locales and in-app-purchase locales are not always the same.
-If App Store Connect explicitly rejects a subscription or subscription-group
-locale as unsupported, the helper logs that one skipped IAP localization and
-continues; the app's listing localization remains staged. All other App Store
-Connect errors still stop the deployment.
-
 ```json
 "subscriptionGroup": { "displayName": "Premium Access" }
 ```
