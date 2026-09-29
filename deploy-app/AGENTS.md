@@ -72,6 +72,28 @@ change unless the user explicitly requests it.
 
 ## Localized App Store copy
 
+## App Store locale shortcodes
+
+`store-metadata/localizations.json` is sent directly to App Store Connect for
+app, subscription-group, and in-app-purchase localizations. Its top-level keys
+must use Apple’s full language-and-region shortcodes, not bare two-letter
+language codes. Do not rely on Fastlane or another tool to expand an alias
+before the API request: App Store Connect rejects unsupported raw values such
+as `ar` and `bg`.
+
+Use the exact code Apple expects for the storefront language. For example,
+German A1 uses:
+
+```text
+ar-SA  bg-BG  en-US  es-ES  fr-FR  hr-HR
+hu-HU  it-IT  pl-PL  ru-RU  tr-TR  uk-UA
+```
+
+Before adding a locale, verify its current shortcode in Apple’s App Store
+Connect localization reference. Validate every source JSON key before a live
+deployment; a `--dry-run` validates the helper’s staging, while the API call
+is the final validation of Apple’s accepted locale list.
+
 When creating or translating `store-metadata/localizations.json` (or the
 equivalent `DEPLOY_ENV` metadata), preserve the source meaning but make each
 localized value fit the applicable App Store Connect limit. Do not truncate
