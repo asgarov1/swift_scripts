@@ -389,6 +389,59 @@ class FastfileTest < Minitest::Test
     FileUtils.remove_entry(environment['METADATA_PATH']) if environment && File.directory?(environment['METADATA_PATH'])
   end
 
+  def test_submitted_subscription_in_another_group_is_reused_without_duplicate_post
+    environment = {
+      'IAP_CREATE_DEFAULTS' => '1',
+      'METADATA_PATH' => Dir.mktmpdir,
+      'IAP_SUBSCRIPTION_GROUP_NAME' => 'Premium Access',
+      'IAP_MONTHLY_REFERENCE_NAME' => 'Monthly',
+      'IAP_MONTHLY_PRODUCT_ID' => 'product.monthly',
+      'IAP_MONTHLY_PRICE_USD' => '6.99',
+      'IAP_QUARTERLY_REFERENCE_NAME' => 'Quarterly',
+      'IAP_QUARTERLY_PRODUCT_ID' => 'product.quarterly',
+      'IAP_QUARTERLY_PRICE_USD' => '14.99',
+      'IAP_LIFETIME_REFERENCE_NAME' => 'Lifetime',
+      'IAP_LIFETIME_PRODUCT_ID' => 'product.lifetime',
+      'IAP_LIFETIME_PRICE_USD' => ''
+    }
+    previous = environment.keys.to_h { |key| [key, ENV[key]] }
+    ENV.update(environment)
+
+    submitted_monthly = { 'id' => 'submitted-monthly', 'attributes' => { 'productId' => 'product.monthly' } }
+    lifetime = { 'id' => 'lifetime', 'attributes' => { 'productId' => 'product.lifetime' } }
+    harness = FastfileHarness.new do |method, path, body|
+      case [method, path]
+      when [:get, '/v1/apps/app/subscriptionGroups?limit=200']
+        collection([
+          { 'id' => 'current-group', 'attributes' => { 'referenceName' => 'Premium Access' } },
+          { 'id' => 'submitted-group', 'attributes' => { 'referenceName' => 'Previous Access' } }
+        ])
+      when [:get, '/v1/subscriptionGroups/current-group/subscriptions?limit=200']
+        collection([])
+      when [:get, '/v1/subscriptionGroups/submitted-group/subscriptions?limit=200']
+        collection([submitted_monthly])
+      when [:get, '/v1/subscriptions/submitted-monthly/prices?filter[territory]=USA&filter[planType]=UPFRONT&limit=200']
+        collection([{ 'id' => 'existing-price' }])
+      when [:post, '/v1/subscriptions']
+        assert_equal 'product.quarterly', body.dig(:data, :attributes, :productId)
+        { 'data' => { 'id' => 'quarterly', 'attributes' => { 'productId' => 'product.quarterly' } } }
+      when [:get, '/v1/subscriptions/quarterly/prices?filter[territory]=USA&filter[planType]=UPFRONT&limit=200']
+        collection([{ 'id' => 'existing-price' }])
+      when [:get, '/v1/apps/app/inAppPurchasesV2?limit=200']
+        collection([lifetime])
+      else
+        flunk "Unexpected request: #{method} #{path}"
+      end
+    end
+
+    harness.ensure_default_products(nil, Struct.new(:id).new('app'))
+    assert_equal 1, harness.requests.count { |method, path, _| method == :post && path == '/v1/subscriptions' }
+    refute harness.requests.any? { |method, path, body| method == :post && path == '/v1/subscriptions' && body.dig(:data, :attributes, :productId) == 'product.monthly' }
+  ensure
+    previous&.each { |key, value| ENV[key] = value }
+    FileUtils.remove_entry(environment['METADATA_PATH']) if environment && File.directory?(environment['METADATA_PATH'])
+  end
+
   def test_inline_in_app_purchase_price_matches_apple_resource_schema
     harness = FastfileHarness.new do |method, path, body|
       case [method, path]

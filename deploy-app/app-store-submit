@@ -252,6 +252,24 @@ platform :ios do
     asc_collection(api_key, path).find { |resource| resource.dig("attributes", "productId") == product_id }
   end
 
+  # Product IDs are unique across an app, not merely within the subscription
+  # group configured for this deployment. A prior run can therefore have
+  # created a subscription in a different group before it was submitted or
+  # moved in App Store Connect. Search every group before POSTing so that a
+  # rerun resumes that resource instead of failing with Apple's 409 duplicate
+  # product-ID error.
+  def app_subscription_with_product_id(api_key, groups, product_id)
+    groups.each do |group|
+      subscription = asc_resource_with_product_id(
+        api_key,
+        "/v1/subscriptionGroups/#{group.fetch("id")}/subscriptions?limit=200",
+        product_id
+      )
+      return subscription if subscription
+    end
+    nil
+  end
+
   def asc_price_point(api_key, path, price)
     wanted_price = format("%.2f", price.to_f)
     point = asc_collection(api_key, path).find do |resource|
@@ -525,10 +543,9 @@ platform :ios do
       ["IAP_MONTHLY_REFERENCE_NAME", "IAP_MONTHLY_PRODUCT_ID", "IAP_MONTHLY_PRICE_USD", "ONE_MONTH"],
       ["IAP_QUARTERLY_REFERENCE_NAME", "IAP_QUARTERLY_PRODUCT_ID", "IAP_QUARTERLY_PRICE_USD", "THREE_MONTHS"]
     ]
-    subscriptions_path = "/v1/subscriptionGroups/#{group.fetch("id")}/subscriptions?limit=200"
     subscription_specs.each do |name_key, product_key, price_key, period|
       product_id = ENV.fetch(product_key)
-      subscription = asc_resource_with_product_id(api_key, subscriptions_path, product_id)
+      subscription = app_subscription_with_product_id(api_key, groups, product_id)
       unless subscription
         subscription = asc_request(api_key, :post, "/v1/subscriptions", body: {
           data: {
@@ -540,6 +557,8 @@ platform :ios do
           }
         }).fetch("data")
         UI.success("Created subscription #{product_id}.")
+      else
+        UI.important("Subscription #{product_id} already exists; reusing it and continuing setup.")
       end
       sync_product_localizations(api_key, subscription, subscription: true)
       ensure_subscription_price(api_key, subscription_id: subscription.fetch("id"), price: ENV.fetch(price_key))
