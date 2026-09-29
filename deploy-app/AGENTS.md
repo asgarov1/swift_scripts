@@ -99,6 +99,25 @@ Validate every source JSON key before a live deployment; a `--dry-run`
 validates the helper’s staging, while the API call is the final validation of
 Apple’s accepted locale list.
 
+### Fastlane metadata-directory allowlist
+
+Fastlane Deliver reads each immediate directory below `store-metadata/` as a
+metadata locale and rejects aliases it does not recognize. The allowed
+directory names are exactly:
+
+```text
+ar-SA bn-BD ca cs da de-DE el en-AU en-CA en-GB en-US es-ES es-MX fi fr-CA
+fr-FR gu-IN he hi hr hu id it ja kn-IN ko ml-IN mr-IN ms nl-NL no or-IN pa-IN
+pl pt-BR pt-PT ro ru sk sl-SI sv ta-IN te-IN th tr uk ur-PK vi zh-Hans zh-Hant
+appleTV iMessage default
+```
+
+Treat this list as the allowed localization codes for Fastlane staging. In
+particular, use `ar-SA` (not `ar`), `hr` (not `hr-HR`), `hu` (not `hu-HU`),
+`it` (not `it-IT`), `pl` (not `pl-PL`), `ru` (not `ru-RU`), `tr` (not `tr-TR`),
+and `uk` (not `uk-UA`). Before running Deliver, remove generated metadata
+directories that are not keys in the authoritative `localizations.json`.
+
 When creating or translating `store-metadata/localizations.json` (or the
 equivalent `DEPLOY_ENV` metadata), preserve the source meaning but make each
 localized value fit the applicable App Store Connect limit. Do not truncate

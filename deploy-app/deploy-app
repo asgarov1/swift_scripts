@@ -575,16 +575,44 @@ publish_privacy_policy() {
 # does not read that format: it discovers localized metadata only from one
 # directory per App Store locale. Expand the source before invoking Fastlane so
 # a default (precheck-only) run and a submission run behave identically.
+fastlane_metadata_locale_allowed() {
+  case "$1" in
+    ar-SA|bn-BD|ca|cs|da|de-DE|el|en-AU|en-CA|en-GB|en-US|es-ES|es-MX|fi|fr-CA|fr-FR|gu-IN|he|hi|hr|hu|id|it|ja|kn-IN|ko|ml-IN|mr-IN|ms|nl-NL|no|or-IN|pa-IN|pl|pt-BR|pt-PT|ro|ru|sk|sl-SI|sv|ta-IN|te-IN|th|tr|uk|ur-PK|vi|zh-Hans|zh-Hant|appleTV|iMessage|default)
+      return 0
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
 stage_json_metadata_localizations() {
-  local localizations_file locale json_field metadata_file value locale_dir
+  local localizations_file locale json_field metadata_file value locale_dir existing_dir existing_locale
   localizations_file="$PROJECT_DIR/store-metadata/localizations.json"
   [[ -f "$localizations_file" ]] || return
   command -v jq >/dev/null 2>&1 || fail "jq is required to stage $localizations_file"
   jq -e 'type == "object" and all(.[]; type == "object" and (.appInformation | type == "object"))' "$localizations_file" >/dev/null \
     || fail "Invalid localization source: $localizations_file (each locale needs an appInformation object)"
 
+  # Fastlane Deliver accepts its own finite set of directory names. Validate
+  # the source first so no partial staging is left behind on a bad locale.
   while IFS= read -r locale; do
-    [[ "$locale" =~ ^[A-Za-z0-9-]+$ ]] || fail "Invalid App Store locale in $localizations_file: $locale"
+    fastlane_metadata_locale_allowed "$locale" \
+      || fail "Unsupported Fastlane metadata locale in $localizations_file: $locale"
+  done < <(jq -r 'keys[]' "$localizations_file")
+
+  # localizations.json is authoritative. Remove generated directories which
+  # are no longer represented in it (including old aliases such as `ar` or
+  # `it-IT`); otherwise Deliver discovers and rejects or uploads them.
+  while IFS= read -r existing_dir; do
+    existing_locale="${existing_dir##*/}"
+    if ! jq -e --arg locale "$existing_locale" 'has($locale)' "$localizations_file" >/dev/null; then
+      rm -rf -- "$existing_dir"
+      printf 'Removed stale generated metadata directory: %s\n' "$existing_dir"
+    fi
+  done < <(find "$PROJECT_DIR/store-metadata" -mindepth 1 -maxdepth 1 -type d -print)
+
+  while IFS= read -r locale; do
     locale_dir="$PROJECT_DIR/store-metadata/$locale"
     mkdir -p "$locale_dir"
 
