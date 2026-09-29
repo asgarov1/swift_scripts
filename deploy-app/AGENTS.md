@@ -76,17 +76,18 @@ change unless the user explicitly requests it.
 
 `store-metadata/localizations.json` is sent directly to App Store Connect for
 app, subscription-group, and in-app-purchase localizations. Its top-level keys
-must use Apple’s full language-and-region shortcodes, not bare two-letter
-language codes. Do not rely on Fastlane or another tool to expand an alias
+must use Apple’s exact shortcodes. The set is mixed: some languages require a
+language-and-region code, while others require a bare language code. Do not
+apply a blanket BCP 47 expansion or rely on Fastlane to transform an alias
 before the API request: App Store Connect rejects unsupported raw values such
-as `ar` and `bg`.
+as `ar`, `bg`, and `tr-TR`.
 
 Use the exact code Apple expects for the storefront language. For example,
 German A1 uses:
 
 ```text
-ar-SA  bg-BG  en-US  es-ES  fr-FR  hr-HR
-hu-HU  it-IT  pl-PL  ru-RU  tr-TR  uk-UA
+ar-SA  bg-BG  en-US  es-ES  fr-FR  hr
+hu     it     pl     ru     tr     uk
 ```
 
 Before adding a locale, verify its current shortcode in Apple’s App Store
