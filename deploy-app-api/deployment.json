@@ -21,22 +21,26 @@
     "bundleVersion": "1",
     "processingTimeoutSeconds": 1800
   },
-  "localizationsPath": "localizations.json",
+  "localizationsPath": "korean-topik-ii/localizations.json",
   "media": {
-  "screenshots": [
-    { "locale": "en-US", "displayType": "APP_IPHONE_67" }
-  ],
-  "previews": [
-    { "locale": "en-US", "displayType": "IPHONE_67" }
-  ]
+    "screenshots": [
+      { "locale": "en-US", "displayType": "APP_IPHONE_67", "folder": "screenshots/iphone" },
+      { "locale": "en-US", "displayType": "APP_IPAD_PRO_3GEN_129", "folder": "screenshots/ipad" }
+    ],
+    "previews": [
+      { "locale": "en-US", "displayType": "IPHONE_67", "files": ["previews/jlingo-app-preview-IPHONE_67.mp4"] },
+      { "locale": "en-US", "displayType": "IPAD_PRO_3GEN_129", "files": ["previews/jlingo-app-preview-IPAD_PRO_3GEN_129.mp4"] }
+    ]
   },
   "purchases": {
-    "subscriptionGroups": [
-      "com.asgarovsoftware.korean_topik_ii.premium",
-      "com.asgarovsoftware.korean_topik_ii.premium.3months"
-      ],
     "inAppPurchases": [
-      "com.asgarovsoftware.korean_topik_ii.premium.lifetime"
-     ]
+      {
+        "name": "Lifetime Premium",
+        "productId": "com.asgarovsoftware.korean_topik_ii.premium.lifetime",
+        "inAppPurchaseType": "NON_CONSUMABLE",
+        "familySharable": false,
+        "price": 42.0
+      }
+    ]
   }
 }

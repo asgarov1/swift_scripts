@@ -232,11 +232,24 @@ class Deployer:
                 aset=self.ensure_set(localizations[locale],kind,display)
                 # A per-device folder is the conventional layout.  Keep an
                 # explicit folder available for uncommon asset layouts.
-                raw_folder = spec.get("folder", f"{plural}/{locale}/{display}")
-                folder=Path(raw_folder); folder=folder if folder.is_absolute() else self.root/folder
-                if not folder.is_dir(): raise DeployError(f"{kind} media folder does not exist: {folder}")
-                paths=sorted(path for path in folder.rglob("*") if path.is_file() and not any(part.startswith(".") for part in path.relative_to(folder).parts))
-                if not paths: raise DeployError(f"{kind} media folder contains no files: {folder}")
+                specified_files = spec.get("files")
+                if specified_files is not None:
+                    if not isinstance(specified_files, list) or not specified_files:
+                        raise DeployError(f"{kind} media files must be a non-empty list")
+                    paths=[]
+                    for raw_file in specified_files:
+                        file=Path(raw_file); file=file if file.is_absolute() else self.root/file
+                        if not file.is_file(): raise DeployError(f"{kind} media file does not exist: {file}")
+                        paths.append(file)
+                    paths=sorted(paths)
+                    media_source="explicit media files"
+                else:
+                    raw_folder = spec.get("folder", f"{plural}/{locale}/{display}")
+                    folder=Path(raw_folder); folder=folder if folder.is_absolute() else self.root/folder
+                    if not folder.is_dir(): raise DeployError(f"{kind} media folder does not exist: {folder}")
+                    paths=sorted(path for path in folder.rglob("*") if path.is_file() and not any(part.startswith(".") for part in path.relative_to(folder).parts))
+                    media_source=str(folder)
+                if not paths: raise DeployError(f"{kind} media source contains no files: {media_source}")
                 for path in paths:
                     self.upload_asset(aset["id"],kind,path)
 
