@@ -168,7 +168,10 @@ class Deployer:
 
     def upsert_localizations(self, version: Dict[str,Any], locales: Dict[str,Any]) -> Dict[str,Dict[str,Any]]:
         self.api.step("synchronize app-info and version localizations")
-        app_info = self.api.request("GET", f"/v1/apps/{self.app['id']}/appInfo", allow=())['data']
+        app_infos = self.api.collection(f"/v1/apps/{self.app['id']}/appInfos?limit=200")
+        if not app_infos:
+            raise DeployError(f"App {self.app['id']} has no App Info resource")
+        app_info = app_infos[0]
         old_info = self.api.collection(f"/v1/appInfos/{app_info['id']}/appInfoLocalizations?limit=200")
         old_ver = self.api.collection(f"/v1/appStoreVersions/{version['id']}/appStoreVersionLocalizations?limit=200")
         result = {}
