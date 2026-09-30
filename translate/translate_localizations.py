@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 import time
 import urllib.parse
@@ -28,8 +29,8 @@ from typing import Any, Callable
 
 
 APP_LOCALES = [
-    "en", "zh-Hans", "hi", "es", "it", "ar", "fr", "fi", "bn", "pt", "ru", "ur", "id", "de",
-    "ja", "sw", "mr", "te", "tr", "ta", "yue-Hant", "vi", "sh", "hu", "pl", "bg",
+    "en", "zh-Hans", "hi", "es", "it", "ar", "fr", "fi", "bn", "pt", "ru", "uk", "ur", "id", "de",
+    "ja", "ko", "sw", "mr", "te", "tr", "ta", "yue-Hant", "vi", "sh", "hu", "pl", "bg",
     "sq",
 ]
 
@@ -114,7 +115,7 @@ def save_json(path: Path, data: Any) -> None:
 
 def write_text_atomic(path: Path, text: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    temporary_path = path.with_name(f".{path.name}.tmp")
+    temporary_path = path.with_name(f".{path.name}.{os.getpid()}.tmp")
     temporary_path.write_text(text, encoding="utf-8")
     temporary_path.replace(path)
 
@@ -245,11 +246,12 @@ def fill_map(
     dry_run: bool,
     progress: TranslationProgress,
     checkpoint: Callable[[], None],
+    target_locales: list[str],
 ) -> int:
     source = source_for_map(mapping, source_lang, source_text, fallback_locale)
     changed = 0
 
-    for locale in APP_LOCALES:
+    for locale in target_locales:
         current = normalize_text(mapping.get(locale))
         if current and not overwrite:
             continue
@@ -271,7 +273,7 @@ def fill_map(
             changed += 1
             checkpoint()
 
-    ordered = {locale: mapping[locale] for locale in APP_LOCALES}
+    ordered = {locale: mapping[locale] for locale in APP_LOCALES if locale in mapping}
     mapping.clear()
     mapping.update(ordered)
     return changed
@@ -287,6 +289,7 @@ def process_item(
     dry_run: bool,
     progress: TranslationProgress,
     checkpoint: Callable[[], None],
+    target_locales: list[str],
 ) -> int:
     changed = 0
 
@@ -305,6 +308,7 @@ def process_item(
             dry_run,
             progress,
             checkpoint,
+            target_locales,
         )
 
     # Grammar title/explanation maps often already contain the authored source
@@ -321,6 +325,7 @@ def process_item(
             dry_run,
             progress,
             checkpoint,
+            target_locales,
         )
     if isinstance(item.get("explanations"), dict):
         changed += fill_map(
@@ -334,6 +339,7 @@ def process_item(
             dry_run,
             progress,
             checkpoint,
+            target_locales,
         )
 
     for example in item.get("examples", []):
@@ -351,6 +357,7 @@ def process_item(
             dry_run,
             progress,
             checkpoint,
+            target_locales,
         )
 
     return changed
@@ -360,10 +367,11 @@ def count_map_translations(
     mapping: dict[str, Any],
     source_lang: str,
     overwrite: bool,
+    target_locales: list[str],
 ) -> int:
     return sum(
         1
-        for locale in APP_LOCALES
+        for locale in target_locales
         if locale != source_lang
         and (overwrite or not normalize_text(mapping.get(locale)))
     )
@@ -373,15 +381,16 @@ def count_item_translations(
     item: dict[str, Any],
     source_lang: str,
     overwrite: bool,
+    target_locales: list[str],
 ) -> int:
     total = 0
     for field in ("translations", "titles", "explanations"):
         mapping = item.get(field)
         if isinstance(mapping, dict):
-            total += count_map_translations(mapping, source_lang, overwrite)
+            total += count_map_translations(mapping, source_lang, overwrite, target_locales)
     for example in item.get("examples", []):
         if isinstance(example, dict) and isinstance(example.get("translations"), dict):
-            total += count_map_translations(example["translations"], source_lang, overwrite)
+            total += count_map_translations(example["translations"], source_lang, overwrite, target_locales)
     return total
 
 
@@ -395,14 +404,14 @@ def resolve_files(paths: list[Path]) -> list[Path]:
     return files
 
 
-def validate_locale_maps(data: Any, path: Path) -> list[str]:
+def validate_locale_maps(data: Any, path: Path, required_locales: list[str] = APP_LOCALES) -> list[str]:
     issues: list[str] = []
 
     def check_map(mapping: Any, label: str) -> None:
         if not isinstance(mapping, dict):
             issues.append(f"{label}: expected object")
             return
-        missing = [locale for locale in APP_LOCALES if not normalize_text(mapping.get(locale))]
+        missing = [locale for locale in required_locales if not normalize_text(mapping.get(locale))]
         extra = [locale for locale in mapping if locale not in APP_LOCALES]
         if missing:
             issues.append(f"{label}: missing {', '.join(missing)}")
@@ -466,6 +475,11 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Do not call the network or write files; report what would change.",
     )
+    parser.add_argument(
+        "--target-locale",
+        choices=APP_LOCALES,
+        help="Fill and validate only one locale. Defaults to all supported locales.",
+    )
     return parser.parse_args()
 
 
@@ -473,6 +487,7 @@ def main() -> int:
     args = parse_args()
     source_lang = args.source_lang
     fallback_locale = args.fallback_locale
+    target_locales = [args.target_locale] if args.target_locale else APP_LOCALES
 
     if source_lang not in APP_LOCALES and source_lang not in GOOGLE_CODES.values():
         print(f"warning: {source_lang!r} is not one of the app locales; using it as a Google source code", file=sys.stderr)
@@ -485,7 +500,7 @@ def main() -> int:
             raise TranslationError(f"{path}: top-level JSON must be a list")
 
     translation_total = sum(
-        count_item_translations(item, source_lang, args.overwrite)
+        count_item_translations(item, source_lang, args.overwrite, target_locales)
         for _path, data in loaded_files
         for item in data
         if isinstance(item, dict)
@@ -514,9 +529,10 @@ def main() -> int:
                     args.dry_run,
                     progress,
                     checkpoint,
+                    target_locales,
                 )
 
-        issues = validate_locale_maps(data, path)
+        issues = validate_locale_maps(data, path, target_locales)
         all_issues.extend(issues)
         total_changed += changed
 

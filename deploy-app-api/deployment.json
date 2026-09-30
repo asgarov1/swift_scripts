@@ -1,0 +1,42 @@
+{
+  "apiKey": {
+    "keyId": "327MHGVU62",
+    "issuerId": "53d1ce14-ea5c-4758-b7cb-c16931049c21",
+    "privateKeyPath": "//Users/asgarov1/Documents/keys/appstore/CodexCli_AuthKey_327MHGVU62.p8"
+  },
+  "app": {
+    "bundleId": "com.asgarovsoftware.jlingo.korean-topik-ii",
+    "sku": "Jlingo Korean Topic II",
+    "primaryLocale": "en-US"
+  },
+  "version": {
+    "platform": "IOS",
+    "versionString": "1.0",
+    "releaseType": "MANUAL",
+    "usesIdfa": false,
+    "copyright": "2026 Asgarov"
+  },
+  "build": {
+    "ipaPath": "build/Example.ipa",
+    "bundleVersion": "1",
+    "processingTimeoutSeconds": 1800
+  },
+  "localizationsPath": "localizations.json",
+  "media": {
+  "screenshots": [
+    { "locale": "en-US", "displayType": "APP_IPHONE_67" }
+  ],
+  "previews": [
+    { "locale": "en-US", "displayType": "IPHONE_67" }
+  ]
+  },
+  "purchases": {
+    "subscriptionGroups": [
+      "com.asgarovsoftware.korean_topik_ii.premium",
+      "com.asgarovsoftware.korean_topik_ii.premium.3months"
+      ],
+    "inAppPurchases": [
+      "com.asgarovsoftware.korean_topik_ii.premium.lifetime"
+     ]
+  }
+}
