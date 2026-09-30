@@ -20,7 +20,13 @@ The generated `deployment.json` is a complete starting shape. Required fields ar
 - `build.ipaPath` and `build.bundleVersion`
 - `localizationsPath`
 
-The required positional `root` argument is the app-assets directory. `build.ipaPath`, `localizationsPath`, and media file paths are relative to that directory unless absolute. The signed IPA must already contain the bundle ID, short version, and build number supplied in the configuration. The script deliberately does not build or sign a release.
+The required positional `root` argument is the app-assets directory. `build.ipaPath`, `localizationsPath`, and media file paths are relative to that directory unless absolute. Set `build.createIpa` to `true` and provide `projectPath` plus `scheme` to have the deployer archive and export the signed IPA through Xcode before it makes App Store Connect changes. `archivePath`, `exportPath`, `configuration`, `exportOptions`, and `allowProvisioningUpdates` are optional; the latter explicitly permits Xcode to obtain automatic-signing assets from Apple. Otherwise, provide an already-exported IPA at `build.ipaPath`.
+
+Use `--build-only` to create and verify the configured IPA without contacting App Store Connect:
+
+```sh
+./deploy_app_store.py --build-only /absolute/path/to/app-assets
+```
 
 Use `app.attributes` for any supported global App attributes that should be reconciled (for example `contentRightsDeclaration`, `isOrEverWasMadeForKids`, `accessibilityUrl`, and subscription status URLs), and `version.attributes` for supported App Store version attributes. These opt-in maps are passed as the corresponding JSON:API attributes, so they remain forward-compatible with Apple’s current schema without the script guessing legally sensitive settings.
 

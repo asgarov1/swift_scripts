@@ -17,9 +17,22 @@
     "copyright": "2026 Asgarov"
   },
   "build": {
-    "ipaPath": "build/Example.ipa",
-    "bundleVersion": "1",
-    "processingTimeoutSeconds": 1800
+    "ipaPath": "build/korean-topik-ii.ipa",
+    "bundleVersion": "4",
+    "processingTimeoutSeconds": 1800,
+    "createIpa": true,
+    "projectPath": "korean-topik-ii.xcodeproj",
+    "scheme": "korean-topik-ii",
+    "configuration": "Release",
+    "archivePath": "build/korean-topik-ii.xcarchive",
+    "exportPath": "build",
+    "allowProvisioningUpdates": true,
+    "exportOptions": {
+      "method": "app-store-connect",
+      "destination": "export",
+      "signingStyle": "automatic",
+      "teamID": "2ZQKN8W3SJ"
+    }
   },
   "localizationsPath": "korean-topik-ii/localizations.json",
   "media": {

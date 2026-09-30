@@ -2,7 +2,7 @@
 """Idempotent App Store Connect deployer using only the REST API and Python stdlib."""
 from __future__ import annotations
 
-import argparse, base64, hashlib, json, logging, os, random, subprocess, sys, time
+import argparse, base64, hashlib, json, logging, os, plistlib, random, subprocess, sys, time
 import urllib.error, urllib.parse, urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
@@ -130,6 +130,35 @@ class Deployer:
 
     def find(self, path: str, attr: str, value: str) -> Optional[Dict[str,Any]]:
         return next((x for x in self.api.collection(path) if x.get("attributes",{}).get(attr) == value), None)
+
+    def prepare_ipa(self) -> None:
+        """Archive and export a signed IPA when the build configuration opts in."""
+        build = self.cfg.get("build", {})
+        if not build.get("createIpa"): return
+        required = ("projectPath", "scheme", "ipaPath")
+        missing = [key for key in required if not build.get(key)]
+        if missing: raise DeployError(f"build.createIpa requires: {', '.join(missing)}")
+        project = Path(build["projectPath"]); project = project if project.is_absolute() else self.root / project
+        if not project.exists(): raise DeployError(f"build.projectPath does not exist: {project}")
+        ipa = Path(build["ipaPath"]); ipa = ipa if ipa.is_absolute() else self.root / ipa
+        archive = Path(build.get("archivePath", "build/App.xcarchive")); archive = archive if archive.is_absolute() else self.root / archive
+        export_path = Path(build.get("exportPath", str(ipa.parent))); export_path = export_path if export_path.is_absolute() else self.root / export_path
+        options = {"method":"app-store-connect", "destination":"export", "signingStyle":"automatic"}; options.update(build.get("exportOptions", {}))
+        self.api.step("archive and export signed IPA with Xcode")
+        export_path.mkdir(parents=True, exist_ok=True)
+        options_path = export_path / "ExportOptions.plist"; options_path.write_bytes(plistlib.dumps(options, fmt=plistlib.FMT_XML, sort_keys=True))
+        archive_command = ["xcodebuild", "archive", "-project", str(project), "-scheme", build["scheme"], "-configuration", build.get("configuration", "Release"), "-destination", "generic/platform=iOS", "-archivePath", str(archive)]
+        if build.get("allowProvisioningUpdates"): archive_command.append("-allowProvisioningUpdates")
+        try:
+            subprocess.run(archive_command, check=True)
+            subprocess.run(["xcodebuild", "-exportArchive", "-archivePath", str(archive), "-exportPath", str(export_path), "-exportOptionsPlist", str(options_path)], check=True)
+        except FileNotFoundError: raise DeployError("xcodebuild is required to create build.ipaPath")
+        except subprocess.CalledProcessError as e: raise DeployError(f"Xcode could not create the signed IPA (exit {e.returncode})")
+        if not ipa.is_file():
+            exported = sorted(export_path.glob("*.ipa"))
+            if len(exported) == 1: exported[0].replace(ipa)
+            else: raise DeployError(f"Xcode export did not create the expected IPA: {ipa}")
+        logging.info("Created signed IPA: %s", ipa)
 
     def ensure_app(self) -> None:
         self.api.step("find existing App Store app record")
@@ -374,17 +403,19 @@ class Deployer:
         raise DeployError("Timed out waiting for Apple build validation; rerun safely later")
 
     def run(self) -> None:
-        self.ensure_app(); version=self.ensure_version(); locales=self.locales(); version_locales=self.upsert_localizations(version,locales); self.media(version_locales); self.ensure_products(locales); self.upload_build(version); self.save()
+        self.prepare_ipa(); self.ensure_app(); version=self.ensure_version(); locales=self.locales(); version_locales=self.upsert_localizations(version,locales); self.media(version_locales); self.ensure_products(locales); self.upload_build(version); self.save()
         self.api.step("deployment API reconciliation complete")
 
 
 EXAMPLE={"apiKey":{"keyId":"ABC123DEFG","issuerId":"00000000-0000-0000-0000-000000000000","privateKeyPath":"/secure/path/AuthKey_ABC123DEFG.p8"},"app":{"bundleId":"com.example.app","sku":"example-app","primaryLocale":"en-US"},"version":{"platform":"IOS","versionString":"1.0","releaseType":"MANUAL","usesIdfa":False,"copyright":"2026 Example"},"build":{"ipaPath":"build/Example.ipa","bundleVersion":"1","processingTimeoutSeconds":1800},"localizationsPath":"localizations.json","media":{"screenshots":[{"locale":"en-US","displayType":"APP_IPHONE_67"}],"previews":[]},"purchases":{"subscriptionGroups":[],"inAppPurchases":[]}}
 def main()->None:
     default_config = Path(__file__).resolve().with_name("deployment.json")
-    p=argparse.ArgumentParser(description=__doc__); p.add_argument("root", nargs="?", help="required app-assets root directory"); p.add_argument("--config", default=str(default_config), help=f"configuration file (default: {default_config})"); p.add_argument("--dry-run",action="store_true"); p.add_argument("--write-example",metavar="PATH"); args=p.parse_args()
+    p=argparse.ArgumentParser(description=__doc__); p.add_argument("root", nargs="?", help="required app-assets root directory"); p.add_argument("--config", default=str(default_config), help=f"configuration file (default: {default_config})"); p.add_argument("--dry-run",action="store_true"); p.add_argument("--build-only",action="store_true",help="create the configured IPA without contacting App Store Connect"); p.add_argument("--write-example",metavar="PATH"); args=p.parse_args()
     if args.write_example: Path(args.write_example).write_text(json.dumps(EXAMPLE,indent=2)+"\n"); return
     if not args.root:p.error("root is required")
     logging.basicConfig(level=logging.INFO,format="%(asctime)s %(levelname)s %(message)s")
-    try: Deployer(json.loads(Path(args.config).read_text()),Path(args.root),args.dry_run).run()
+    try:
+        deployer=Deployer(json.loads(Path(args.config).read_text()),Path(args.root),args.dry_run)
+        deployer.prepare_ipa() if args.build_only else deployer.run()
     except (DeployError,KeyError,ValueError,json.JSONDecodeError) as e: logging.error("Deployment stopped: %s",e); sys.exit(1)
 if __name__=="__main__": main()
