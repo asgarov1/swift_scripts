@@ -10,6 +10,27 @@ from typing import Any, Dict, Iterable, List, Optional
 
 API = "https://api.appstoreconnect.apple.com"
 RETRYABLE = {408, 409, 425, 429, 500, 502, 503, 504}
+PROMOTIONAL_TEXT = "No account, no registration, fully offline — ideal for learning wherever you are."
+PROMOTIONAL_TEXT_BY_LOCALE = {
+    "ar": "لا حساب، لا تسجيل، يعمل بالكامل دون اتصال بالإنترنت — مثالي للتعلّم أينما كنت.",
+    "de": "Kein Konto, keine Registrierung, vollständig offline — ideal zum Lernen, wo immer du bist.",
+    "es": "Sin cuenta, sin registro, totalmente sin conexión — ideal para aprender estés donde estés.",
+    "fr": "Aucun compte, aucune inscription, entièrement hors ligne — idéal pour apprendre où que vous soyez.",
+    "hr": "Bez računa, bez registracije, potpuno izvan mreže — idealno za učenje gdje god bili.",
+    "hu": "Nincs fiók, nincs regisztráció, teljesen offline — ideális a tanuláshoz, bárhol is vagy.",
+    "it": "Nessun account, nessuna registrazione, completamente offline — ideale per imparare ovunque ti trovi.",
+    "ja": "アカウントも登録も不要、完全オフライン。どこにいても学習に最適です。",
+    "pl": "Bez konta, bez rejestracji, w pełni offline — idealne do nauki, gdziekolwiek jesteś.",
+    "ru": "Без аккаунта, без регистрации, полностью офлайн — идеально для обучения, где бы вы ни были.",
+    "tr": "Hesap yok, kayıt yok, tamamen çevrimdışı — nerede olursanız olun öğrenmek için ideal.",
+    "uk": "Без облікового запису, без реєстрації, повністю офлайн — ідеально для навчання, де б ви не були.",
+    "vi": "Không cần tài khoản, không cần đăng ký, hoàn toàn ngoại tuyến — lý tưởng để học mọi lúc mọi nơi.",
+}
+
+
+def promotional_text(locale: str) -> str:
+    """Return the managed promotional text for an App Store locale."""
+    return PROMOTIONAL_TEXT_BY_LOCALE.get(locale.split("-", 1)[0].lower(), PROMOTIONAL_TEXT)
 
 
 def b64(value: bytes) -> str:
@@ -17,6 +38,42 @@ def b64(value: bytes) -> str:
 
 
 class DeployError(RuntimeError): pass
+
+
+class APIRequestError(DeployError):
+    """An App Store Connect response that could not be completed."""
+    def __init__(self, method: str, url: str, status: Optional[int], response: str):
+        self.method, self.url, self.status, self.response = method, url, status, response
+        super().__init__(f"{method} {url} failed after retries: " + (f"HTTP {status}: {response[:1200]}" if status else response))
+
+    def unavailable_attribute(self) -> Optional[str]:
+        """Return Apple's locked attribute name for a state-error response, if any."""
+        if self.status != 409:
+            return None
+        try:
+            errors = json.loads(self.response).get("errors", [])
+        except json.JSONDecodeError:
+            return None
+        for error in errors:
+            detail = error.get("detail", "")
+            prefix, suffix = "Attribute '", "' cannot be edited at this time"
+            if error.get("code") == "STATE_ERROR" and detail.startswith(prefix) and detail.endswith(suffix):
+                return detail[len(prefix):-len(suffix)]
+        return None
+
+    def duplicate_locale(self) -> bool:
+        """Whether Apple says a localization's locale already exists."""
+        if self.status != 409:
+            return False
+        try:
+            errors = json.loads(self.response).get("errors", [])
+        except json.JSONDecodeError:
+            return False
+        return any(
+            error.get("code") == "ENTITY_ERROR.ATTRIBUTE.INVALID.DUPLICATE"
+            and error.get("source", {}).get("pointer") == "/data/attributes/locale"
+            for error in errors
+        )
 
 
 class ASC:
@@ -64,6 +121,7 @@ class ASC:
             hdr.setdefault("Content-Type", "application/json")
             hdr.setdefault("Accept", "application/json")
         last = None
+        last_status: Optional[int] = None
         for attempt in range(7):
             try:
                 req = urllib.request.Request(url, data=payload, headers=hdr, method=method)
@@ -74,6 +132,12 @@ class ASC:
                 content = e.read().decode(errors="replace")
                 if e.code in allow: return None
                 last = f"HTTP {e.code}: {content[:1200]}"
+                last_status = e.code
+                # Retrying cannot make a field editable.  Surface this precise
+                # response immediately so the per-field patcher can skip it.
+                state_error = APIRequestError(method, url, e.code, content)
+                if state_error.unavailable_attribute() or state_error.duplicate_locale():
+                    raise state_error
                 retry_after = e.headers.get("Retry-After")
                 if e.code not in RETRYABLE: break
                 delay = float(retry_after) if retry_after and retry_after.isdigit() else min(60, 2 ** attempt + random.random())
@@ -81,7 +145,7 @@ class ASC:
                 last, delay = str(e), min(60, 2 ** attempt + random.random())
             logging.warning("Request failed (%s); retrying in %.1fs", last, delay)
             time.sleep(delay)
-        raise DeployError(f"{method} {url} failed after retries: {last}")
+        raise APIRequestError(method, url, last_status, content if last_status else (last or "request failed"))
 
     def collection(self, path: str) -> List[Dict[str,Any]]:
         out, next_path = [], path
@@ -94,6 +158,18 @@ class ASC:
         if self.dry_run:
             logging.info("DRY RUN %s %s", method, path); return {"data":{"id":"dry-run", "type":body.get("data",{}).get("type","")}}
         return self.request(method, path, body, allow=()) or {}
+
+    def mutate_editable_fields(self, path: str, typ: str, ident: str, changed: Dict[str,Any], *, label: str) -> None:
+        """Patch independently so a locked optional field does not block other metadata."""
+        for field, value in changed.items():
+            try:
+                self.mutate("PATCH", path, data(typ, {field:value}, ident=ident))
+            except APIRequestError as error:
+                unavailable = error.unavailable_attribute()
+                if unavailable == field:
+                    logging.info("Skipping %s.%s because field is not available for edit", label, field)
+                    continue
+                raise
 
 
 def data(typ: str, attrs: Optional[Dict[str,Any]]=None, rel: Optional[Dict[str,Any]]=None, ident: Optional[str]=None) -> Dict[str,Any]:
@@ -168,7 +244,7 @@ class Deployer:
             # App attributes are opt-in: do not overwrite account settings unless named in config.
             wanted = ac.get("attributes", {})
             changed = {k:v for k,v in wanted.items() if self.app.get("attributes",{}).get(k) != v}
-            if changed: self.api.mutate("PATCH", f"/v1/apps/{self.app['id']}", data("apps", changed, ident=self.app["id"]))
+            if changed: self.api.mutate_editable_fields(f"/v1/apps/{self.app['id']}", "apps", self.app["id"], changed, label="app")
             logging.info("Reusing app %s", self.app["id"]); return
         raise DeployError("No App Store Connect app record exists for this bundle ID. Apple's current Apps API is read/modify only; create the record once in App Store Connect, then rerun this API-only deployer.")
 
@@ -183,7 +259,7 @@ class Deployer:
             state = v.get("attributes", {}).get("appStoreState")
             if state not in ("PREPARE_FOR_SUBMISSION", "DEVELOPER_REJECTED", "REJECTED", "METADATA_REJECTED", "INVALID_BINARY"):
                 raise DeployError(f"Version {vc['versionString']} already exists in non-editable state {state}; choose a new versionString")
-            if attrs: self.api.mutate("PATCH", f"/v1/appStoreVersions/{v['id']}", data("appStoreVersions", attrs, ident=v["id"]))
+            if attrs: self.api.mutate_editable_fields(f"/v1/appStoreVersions/{v['id']}", "appStoreVersions", v["id"], attrs, label=f"version {vc['versionString']}")
             return v
         attrs.update({"platform":vc.get("platform","IOS"), "versionString":vc["versionString"]})
         return self.api.mutate("POST", "/v1/appStoreVersions", data("appStoreVersions", attrs, {"app":relationship("apps",self.app["id"])}))["data"]
@@ -208,20 +284,41 @@ class Deployer:
             ai = source.get("appInformation", {})
             av = source.get("appStoreVersion", source.get("appInformation", {}))
             info_attrs = {"locale":locale, **{k:ai[k] for k in ("name","subtitle","privacyPolicyUrl") if k in ai}}
-            ver_attrs = {"locale":locale, **{k:av[k] for k in ("description","keywords","marketingUrl","promotionalText","supportUrl","whatsNew") if k in av}}
+            ver_attrs = {"locale":locale, **{k:av[k] for k in ("description","keywords","marketingUrl","supportUrl","whatsNew") if k in av}}
+            # Keep the store listing's message consistent across every app.
+            # This deliberately overrides stale values in localizations.json.
+            ver_attrs["promotionalText"] = promotional_text(locale)
             if not info_attrs.get("name"): raise DeployError(f"{locale}: appInformation.name is required")
             existing = next((x for x in old_info if x.get("attributes",{}).get("locale")==locale), None)
             if existing:
                 changed = {k:v for k,v in info_attrs.items() if existing.get("attributes",{}).get(k)!=v}
-                if changed: self.api.mutate("PATCH",f"/v1/appInfoLocalizations/{existing['id']}",data("appInfoLocalizations",changed,ident=existing["id"]))
-            else: self.api.mutate("POST","/v1/appInfoLocalizations",data("appInfoLocalizations",info_attrs,{"appInfo":relationship("appInfos",app_info["id"])}))
+                if changed: self.api.mutate_editable_fields(f"/v1/appInfoLocalizations/{existing['id']}", "appInfoLocalizations", existing["id"], changed, label=f"{locale} app-information localization")
+            else:
+                try:
+                    self.api.mutate("POST", "/v1/appInfoLocalizations", data("appInfoLocalizations", info_attrs, {"appInfo":relationship("appInfos", app_info["id"])}))
+                except APIRequestError as error:
+                    if not error.duplicate_locale(): raise
+                    logging.info("Locale %s already exists for app information; refreshing and updating it", locale)
+                    existing = next((x for x in self.api.collection(f"/v1/appInfos/{app_info['id']}/appInfoLocalizations?limit=200") if x.get("attributes",{}).get("locale") == locale), None)
+                    if not existing: raise DeployError(f"{locale}: Apple reported a duplicate app-information localization but did not return it")
+                    changed = {k:v for k,v in info_attrs.items() if existing.get("attributes",{}).get(k) != v}
+                    if changed: self.api.mutate_editable_fields(f"/v1/appInfoLocalizations/{existing['id']}", "appInfoLocalizations", existing["id"], changed, label=f"{locale} app-information localization")
             existing = next((x for x in old_ver if x.get("attributes",{}).get("locale")==locale), None)
             if existing:
                 changed = {k:v for k,v in ver_attrs.items() if existing.get("attributes",{}).get(k)!=v}
-                if changed: self.api.mutate("PATCH",f"/v1/appStoreVersionLocalizations/{existing['id']}",data("appStoreVersionLocalizations",changed,ident=existing["id"]))
+                if changed: self.api.mutate_editable_fields(f"/v1/appStoreVersionLocalizations/{existing['id']}", "appStoreVersionLocalizations", existing["id"], changed, label=f"{locale} version localization")
                 result[locale]=existing
             else:
-                result[locale]=self.api.mutate("POST","/v1/appStoreVersionLocalizations",data("appStoreVersionLocalizations",ver_attrs,{"appStoreVersion":relationship("appStoreVersions",version["id"])}))["data"]
+                try:
+                    result[locale] = self.api.mutate("POST", "/v1/appStoreVersionLocalizations", data("appStoreVersionLocalizations", ver_attrs, {"appStoreVersion":relationship("appStoreVersions", version["id"])}))["data"]
+                except APIRequestError as error:
+                    if not error.duplicate_locale(): raise
+                    logging.info("Locale %s already exists for version metadata; refreshing and updating it", locale)
+                    existing = next((x for x in self.api.collection(f"/v1/appStoreVersions/{version['id']}/appStoreVersionLocalizations?limit=200") if x.get("attributes",{}).get("locale") == locale), None)
+                    if not existing: raise DeployError(f"{locale}: Apple reported a duplicate version localization but did not return it")
+                    changed = {k:v for k,v in ver_attrs.items() if existing.get("attributes",{}).get(k) != v}
+                    if changed: self.api.mutate_editable_fields(f"/v1/appStoreVersionLocalizations/{existing['id']}", "appStoreVersionLocalizations", existing["id"], changed, label=f"{locale} version localization")
+                    result[locale] = existing
         return result
 
     def ensure_set(self, localization: Dict[str,Any], kind: str, display: str) -> Dict[str,Any]:
@@ -300,7 +397,10 @@ class Deployer:
                     product=self.api.mutate("POST","/v1/subscriptions",data("subscriptions",attrs,{"group":relationship("subscriptionGroups",group["id"])}))["data"]
                 self.product_version_locales(product,"subscription",locales)
                 self.subscription_price(product,p)
-        all_iap=self.api.collection(f"/v2/inAppPurchases?filter[app]={self.app['id']}&limit=200")
+        # Apple intentionally does not expose a GET_COLLECTION operation for
+        # /v2/inAppPurchases.  IAPs must instead be listed through the app's
+        # v1 relationship endpoint; use v2 only for individual IAP resources.
+        all_iap=self.api.collection(f"/v1/apps/{self.app['id']}/inAppPurchasesV2?limit=200")
         for p in purchases.get("inAppPurchases",[]):
             product=next((x for x in all_iap if x.get("attributes",{}).get("productId")==p["productId"]),None)
             if not product:
@@ -327,8 +427,17 @@ class Deployer:
             current=next((x for x in old if x.get("attributes",{}).get("locale")==locale),None)
             if current:
                 changed={k:v for k,v in attrs.items() if current.get("attributes",{}).get(k)!=v}
-                if changed:self.api.mutate("PATCH",f"/v2/{typ}/{current['id']}",data(typ,changed,ident=current["id"]))
-            else:self.api.mutate("POST",f"/v2/{typ}",data(typ,attrs,{"version":relationship(version_type,version["id"])}))
+                if changed:self.api.mutate_editable_fields(f"/v2/{typ}/{current['id']}", typ, current["id"], changed, label=f"{locale} {pid} localization")
+            else:
+                try:
+                    self.api.mutate("POST", f"/v2/{typ}", data(typ, attrs, {"version":relationship(version_type, version["id"])}))
+                except APIRequestError as error:
+                    if not error.duplicate_locale(): raise
+                    logging.info("Locale %s already exists for %s; refreshing and updating it", locale, pid)
+                    current = next((x for x in self.api.collection(f"/v1/{version_type}/{version['id']}/localizations?limit=200") if x.get("attributes",{}).get("locale") == locale), None)
+                    if not current: raise DeployError(f"{locale}: Apple reported a duplicate {pid} localization but did not return it")
+                    changed = {k:v for k,v in attrs.items() if current.get("attributes",{}).get(k) != v}
+                    if changed:self.api.mutate_editable_fields(f"/v2/{typ}/{current['id']}", typ, current["id"], changed, label=f"{locale} {pid} localization")
 
     def price_point(self,path:str,price:float)->Dict[str,Any]:
         return next((x for x in self.api.collection(path) if float(x.get("attributes",{}).get("customerPrice",-1))==float(price)), None) or (_ for _ in ()).throw(DeployError(f"No USA price point for {price}"))

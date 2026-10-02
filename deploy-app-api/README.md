@@ -48,7 +48,6 @@ The `media` section has arrays of `{ locale, displayType }`; `folder` is optiona
       "description": "A complete App Store description.",
       "keywords": "learning,practice,example",
       "marketingUrl": "https://example.com",
-      "promotionalText": "A short promotion.",
       "supportUrl": "https://example.com/support",
       "whatsNew": "First release."
     },
@@ -68,7 +67,13 @@ The `media` section has arrays of `{ locale, displayType }`; `folder` is optiona
 }
 ```
 
-The legacy-compatible `appInformation.description`, `keywords`, `supportUrl`, and related version fields are also accepted if `appStoreVersion` is absent.
+The deployer always sets Promotional Text to “No account, no registration, fully
+offline — ideal for learning wherever you are.” It applies the built-in locale
+translation for supported languages and falls back to that English text for any
+other locale, so `promotionalText` in `localizations.json` is intentionally
+ignored. The legacy-compatible `appInformation.description`, `keywords`,
+`supportUrl`, and related version fields are also accepted if `appStoreVersion`
+is absent.
 
 ## Reruns and checkpoints
 
