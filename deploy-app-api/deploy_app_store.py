@@ -52,6 +52,13 @@ REVIEW_DETAILS = {
     "demoAccountRequired": False,
     "notes": "The app does not require login. It works fully offline without an account.",
 }
+PRODUCT_REVIEW_NOTE = '''In order to see the "Unlock Premium":
+
+1. Open the app
+2. Open "Verb Conjugation"
+3. Scroll until 3rd word
+4. Click on any part with the "lock" icon'''
+PRODUCT_REVIEW_SCREENSHOT = Path(__file__).parent.parent / "Premium_with_three_options.jpg"
 PROMOTIONAL_TEXT_BY_LOCALE = {
     "ar": "لا حساب، لا تسجيل، يعمل بالكامل دون اتصال بالإنترنت — مثالي للتعلّم أينما كنت.",
     "de": "Kein Konto, keine Registrierung, vollständig offline — ideal zum Lernen, wo immer du bist.",
@@ -576,6 +583,58 @@ class Deployer:
                 for path in paths:
                     self.upload_asset(aset["id"],kind,path)
 
+    def product_review_material(self, product: Dict[str,Any], kind: str) -> None:
+        """Synchronize the fixed App Review note and paywall screenshot for a product."""
+        if not PRODUCT_REVIEW_SCREENSHOT.is_file():
+            raise DeployError(f"Product review screenshot is missing: {PRODUCT_REVIEW_SCREENSHOT}")
+        if kind == "subscription":
+            parent, route, typ, rel, product_type = (
+                "/v1/subscriptions", "subscriptionAppStoreReviewScreenshots",
+                "subscriptionAppStoreReviewScreenshots", "subscription", "subscriptions",
+            )
+        else:
+            parent, route, typ, rel, product_type = (
+                "/v2/inAppPurchases", "inAppPurchaseAppStoreReviewScreenshots",
+                "inAppPurchaseAppStoreReviewScreenshots", "inAppPurchaseV2", "inAppPurchases",
+            )
+
+        if product.get("attributes", {}).get("reviewNote") != PRODUCT_REVIEW_NOTE:
+            self.api.mutate_editable_fields(
+                f"{parent}/{product['id']}", product_type, product["id"],
+                {"reviewNote": PRODUCT_REVIEW_NOTE},
+                label=f"{product.get('attributes', {}).get('productId', product['id'])} review note",
+            )
+
+        screenshot = PRODUCT_REVIEW_SCREENSHOT
+        remote = (self.api.request("GET", f"{parent}/{product['id']}/appStoreReviewScreenshot") or {}).get("data")
+        if remote:
+            logging.info(
+                "Product review screenshot already exists for %s; leaving it unchanged",
+                product.get("attributes", {}).get("productId", product["id"]),
+            )
+            return
+
+        key = f"product-review:{kind}:{product['id']}:{sha256(screenshot)}"
+        reservation_id = self.journal["assets"].get(key)
+        asset = self.api.request("GET", f"/v1/{route}/{reservation_id}") if reservation_id else None
+        if not asset or asset.get("data", {}).get("attributes", {}).get("assetDeliveryState", {}).get("state") in ("FAILED", "COMPLETE"):
+            asset = self.api.mutate(
+                "POST", f"/v1/{route}",
+                data(typ, {"fileName": screenshot.name, "fileSize": screenshot.stat().st_size}, {rel: relationship(product_type, product["id"])}),
+            )
+            reservation_id = asset["data"]["id"]
+            self.journal["assets"][key] = reservation_id
+            self.save()
+        attrs = asset["data"].get("attributes", {})
+        if not self.api.dry_run and not attrs.get("uploaded"):
+            with screenshot.open("rb") as fh:
+                for operation in attrs.get("uploadOperations", []):
+                    fh.seek(operation["offset"])
+                    chunk = fh.read(operation["length"])
+                    self.api.request(operation["method"], operation["url"], raw=chunk, headers={header["name"]: header["value"] for header in operation.get("requestHeaders", [])}, allow=())
+            self.api.mutate("PATCH", f"/v1/{route}/{reservation_id}", data(typ, {"uploaded": True, "sourceFileChecksum": checksum(screenshot)}, ident=reservation_id))
+        logging.info("Uploaded product review screenshot %s for %s", screenshot.name, product.get("attributes", {}).get("productId", product["id"]))
+
     def ensure_products(self, locales: Dict[str,Any]) -> None:
         purchases = self.cfg.get("purchases", {})
         self.api.step("create/reuse subscriptions, in-app purchases, prices, and localizations")
@@ -593,11 +652,12 @@ class Deployer:
             if not group:
                 group=self.api.mutate("POST","/v1/subscriptionGroups",data("subscriptionGroups",{"referenceName":g["referenceName"]},{"app":relationship("apps",self.app["id"])}))["data"]
                 groups.append(group)
+            self.subscription_group_locales(group, locales)
             subs=self.api.collection(f"/v1/subscriptionGroups/{group['id']}/subscriptions?limit=200")
             for p in g.get("subscriptions",[]):
                 product=next((x for x in all_subs if x.get("attributes",{}).get("productId")==p["productId"]),None)
                 if not product:
-                    attrs={k:p[k] for k in ("name","productId","subscriptionPeriod","familySharable") if k in p}
+                    attrs={k:p[k] for k in ("name","productId","subscriptionPeriod","familySharable") if k in p}; attrs["reviewNote"] = PRODUCT_REVIEW_NOTE
                     try:
                         product=self.api.mutate("POST","/v1/subscriptions",data("subscriptions",attrs,{"group":relationship("subscriptionGroups",group["id"])}))["data"]
                     except APIRequestError as error:
@@ -609,6 +669,7 @@ class Deployer:
                         product=next((x for x in subs if x.get("attributes",{}).get("productId")==p["productId"]),None)
                         if not product: raise DeployError(f"Subscription {p['productId']} already exists but is not in subscription group {group['id']}")
                 if product not in all_subs: all_subs.append(product)
+                self.product_review_material(product, "subscription")
                 self.product_version_locales(product,"subscription",locales)
                 self.subscription_price(product,p)
         # Apple intentionally does not expose a GET_COLLECTION operation for
@@ -618,7 +679,7 @@ class Deployer:
         for p in purchases.get("inAppPurchases",[]):
             product=next((x for x in all_iap if x.get("attributes",{}).get("productId")==p["productId"]),None)
             if not product:
-                attrs={k:p[k] for k in ("name","productId","inAppPurchaseType","familySharable","reviewNote") if k in p}
+                attrs={k:p[k] for k in ("name","productId","inAppPurchaseType","familySharable") if k in p}; attrs["reviewNote"] = PRODUCT_REVIEW_NOTE
                 try:
                     product=self.api.mutate("POST","/v2/inAppPurchases",data("inAppPurchases",attrs,{"app":relationship("apps",self.app["id"])}))["data"]
                 except APIRequestError as error:
@@ -627,7 +688,62 @@ class Deployer:
                     all_iap=self.api.collection(f"/v1/apps/{self.app['id']}/inAppPurchasesV2?limit=200")
                     product=next((x for x in all_iap if x.get("attributes",{}).get("productId")==p["productId"]),None)
                     if not product: raise DeployError(f"In-app purchase {p['productId']} already exists but could not be retrieved")
+            self.product_review_material(product, "iap")
             self.product_version_locales(product,"iap",locales); self.iap_price(product,p)
+
+    def subscription_group_locales(self, group: Dict[str,Any], locales: Dict[str,Any]) -> None:
+        """Create missing subscription-group localizations and reconcile explicit text."""
+        self.api.step(f"synchronize subscription-group localizations for {group['id']}")
+        version_type, typ = "subscriptionGroupVersions", "subscriptionGroupLocalizations"
+        requested = []
+        for locale, source in locales.items():
+            explicit = "subscriptionGroup" in source
+            text = source.get("subscriptionGroup") if explicit else {"displayName": source.get("appInformation", {}).get("name")}
+            if not isinstance(text, dict):
+                raise DeployError(f"{locale}: subscriptionGroup must be an object")
+            name = text.get("displayName")
+            if not isinstance(name, str) or not name.strip() or len(name) > 75:
+                raise DeployError(f"{locale}: subscriptionGroup.displayName must be 1–75 characters")
+            attrs = {"locale": locale, "name": name}
+            if "customAppName" in text:
+                custom_name = text["customAppName"]
+                if custom_name is not None and (not isinstance(custom_name, str) or not custom_name.strip() or len(custom_name) > 30):
+                    raise DeployError(f"{locale}: subscriptionGroup.customAppName must be 1–30 characters or null")
+                attrs["customAppName"] = custom_name
+            requested.append((attrs, explicit))
+
+        versions = self.api.collection(f"/v1/subscriptionGroups/{group['id']}/versions?limit=200")
+        version = next((x for x in versions if x.get("attributes", {}).get("state") == "PREPARE_FOR_SUBMISSION"), None)
+        if not version:
+            try:
+                version = self.api.mutate("POST", f"/v1/{version_type}", data(version_type, rel={"subscriptionGroup": relationship("subscriptionGroups", group["id"])}))["data"]
+            except APIRequestError as error:
+                version_id = error.existing_resource_id()
+                if not version_id: raise
+                logging.info("Reusing existing in-flight %s for subscription group %s", version_type, group["id"])
+                version = (self.api.request("GET", f"/v1/{version_type}/{version_id}", allow=()) or {}).get("data")
+                if not version: raise DeployError(f"Apple reported existing {version_type} {version_id}, but it could not be retrieved")
+
+        existing = self.api.collection(f"/v1/{version_type}/{version['id']}/localizations?limit=200")
+        for attrs, explicit in requested:
+            current = next((x for x in existing if x.get("attributes", {}).get("locale") == attrs["locale"]), None)
+            if current:
+                # The localized app name is a default for a missing group
+                # localization; do not overwrite an editorial group name with it.
+                if not explicit: continue
+                changed = {key: value for key, value in attrs.items() if current.get("attributes", {}).get(key) != value}
+                if changed: self.api.mutate_editable_fields(f"/v2/{typ}/{current['id']}", typ, current["id"], changed, label=f"{attrs['locale']} subscription-group localization")
+                continue
+            try:
+                self.api.mutate("POST", f"/v2/{typ}", data(typ, attrs, {"version": relationship(version_type, version["id"])}))
+            except APIRequestError as error:
+                if not error.duplicate_locale(): raise
+                logging.info("Locale %s already exists for subscription group; refreshing and updating it", attrs["locale"])
+                current = next((x for x in self.api.collection(f"/v1/{version_type}/{version['id']}/localizations?limit=200") if x.get("attributes", {}).get("locale") == attrs["locale"]), None)
+                if not current: raise DeployError(f"{attrs['locale']}: Apple reported a duplicate subscription-group localization but did not return it")
+                if explicit:
+                    changed = {key: value for key, value in attrs.items() if current.get("attributes", {}).get(key) != value}
+                    if changed: self.api.mutate_editable_fields(f"/v2/{typ}/{current['id']}", typ, current["id"], changed, label=f"{attrs['locale']} subscription-group localization")
 
     def product_version_locales(self, product: Dict[str,Any], kind: str, locales: Dict[str,Any]) -> None:
         version_type="subscriptionVersions" if kind=="subscription" else "inAppPurchaseVersions"

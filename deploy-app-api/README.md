@@ -36,7 +36,11 @@ Every deployment also reconciles the App Review information for its App Store ve
 
 The `media` section has arrays of `{ locale, displayType }`; `folder` is optional. The deployer recursively uploads every non-hidden file in each folder, in stable path order. Use `files` with a non-empty list of explicit paths when a display type has a specific asset, such as an individual preview video; it takes precedence over `folder`. Without either, it expects screenshots in `screenshots/<locale>/<displayType>` and previews in `previews/<locale>/<displayType>` beneath `root`. Paths are resolved from `root` unless absolute. Screenshot display types use values such as `APP_IPHONE_67`; preview types use the corresponding values without the `APP_` prefix, such as `IPHONE_67`.
 
-`purchases.subscriptionGroups[].subscriptions[]` accepts `name`, `productId`, `subscriptionPeriod`, optional `familySharable`, and optional USA `price`. `purchases.inAppPurchases[]` accepts `name`, `productId`, `inAppPurchaseType`, optional `familySharable`, `reviewNote`, and optional USA `price`.
+`purchases.subscriptionGroups[].subscriptions[]` accepts `name`, `productId`, `subscriptionPeriod`, optional `familySharable`, and optional USA `price`. `purchases.inAppPurchases[]` accepts `name`, `productId`, `inAppPurchaseType`, optional `familySharable`, and optional USA `price`.
+
+Every subscription and in-app purchase uses the fixed App Review note that
+explains how to reach **Unlock Premium**. The matching review screenshot is the
+shared [`Premium_with_three_options.jpg`](/Users/asgarov1/Projects/swift/scripts/Premium_with_three_options.jpg) in the scripts directory. On reruns, the deployer leaves any existing product review screenshot unchanged; it uploads the shared file only when the product has no review screenshot.
 
 ## `localizations.json`
 
@@ -78,6 +82,13 @@ other locale, so `promotionalText` in `localizations.json` is intentionally
 ignored. The legacy-compatible `appInformation.description`, `keywords`,
 `supportUrl`, and related version fields are also accepted if `appStoreVersion`
 is absent.
+
+Each configured subscription group is localized through its draft
+`subscriptionGroupVersion`. Add a locale-specific `subscriptionGroup` object
+with `displayName` (and optional `customAppName`) to override its text. When it
+is absent, the deployer creates a missing group localization from that locale's
+`appInformation.name`, so every listed locale—including Korean when present—is
+covered without duplicating the app name.
 
 ## Reruns and checkpoints
 
