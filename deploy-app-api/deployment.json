@@ -46,6 +46,27 @@
     ]
   },
   "purchases": {
+    "subscriptionGroups": [
+      {
+        "referenceName": "Premium Access",
+        "subscriptions": [
+          {
+            "name": "Monthly Subscription",
+            "productId": "com.asgarovsoftware.korean_topik_ii.premium",
+            "subscriptionPeriod": "ONE_MONTH",
+            "familySharable": false,
+            "price": 6.99
+          },
+          {
+            "name": "Quarterly (3 months) Subscription",
+            "productId": "com.asgarovsoftware.korean_topik_ii.premium.3months",
+            "subscriptionPeriod": "THREE_MONTHS",
+            "familySharable": false,
+            "price": 14.99
+          }
+        ]
+      }
+    ],
     "inAppPurchases": [
       {
         "name": "Lifetime Premium",

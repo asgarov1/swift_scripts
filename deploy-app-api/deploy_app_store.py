@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse, base64, hashlib, json, logging, os, plistlib, random, subprocess, sys, time
+import re
 import urllib.error, urllib.parse, urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
@@ -11,6 +12,46 @@ from typing import Any, Dict, Iterable, List, Optional
 API = "https://api.appstoreconnect.apple.com"
 RETRYABLE = {408, 409, 425, 429, 500, 502, 503, 504}
 PROMOTIONAL_TEXT = "No account, no registration, fully offline — ideal for learning wherever you are."
+PRIMARY_CATEGORY_ID = "EDUCATION"
+CONTENT_RIGHTS_DECLARATION = "DOES_NOT_USE_THIRD_PARTY_CONTENT"
+PRIVACY_POLICY_BASE_URL = "https://asgarov1.github.io/Privacy-Policies"
+AGE_RATING_DECLARATION = {
+    "advertising": False,
+    "alcoholTobaccoOrDrugUseOrReferences": "NONE",
+    "contests": "NONE",
+    "gambling": False,
+    "gamblingSimulated": "NONE",
+    "gunsOrOtherWeapons": "NONE",
+    "healthOrWellnessTopics": False,
+    "lootBox": False,
+    "medicalOrTreatmentInformation": "NONE",
+    "messagingAndChat": False,
+    "parentalControls": False,
+    "profanityOrCrudeHumor": "NONE",
+    "ageAssurance": False,
+    "sexualContentGraphicAndNudity": "NONE",
+    "sexualContentOrNudity": "NONE",
+    "socialMedia": False,
+    "socialMediaAgeRestricted": False,
+    "horrorOrFearThemes": "NONE",
+    "matureOrSuggestiveThemes": "NONE",
+    "unrestrictedWebAccess": False,
+    "userGeneratedContent": False,
+    "violenceCartoonOrFantasy": "NONE",
+    "violenceRealisticProlongedGraphicOrSadistic": "NONE",
+    "violenceRealistic": "NONE",
+    "ageRatingOverride": "NONE",
+    "ageRatingOverrideV2": "NONE",
+    "koreaAgeRatingOverride": "NONE",
+}
+REVIEW_DETAILS = {
+    "contactFirstName": "Javid",
+    "contactLastName": "Asgarov",
+    "contactPhone": "+436644311561",
+    "contactEmail": "asgarov1@gmail.com",
+    "demoAccountRequired": False,
+    "notes": "The app does not require login. It works fully offline without an account.",
+}
 PROMOTIONAL_TEXT_BY_LOCALE = {
     "ar": "لا حساب، لا تسجيل، يعمل بالكامل دون اتصال بالإنترنت — مثالي للتعلّم أينما كنت.",
     "de": "Kein Konto, keine Registrierung, vollständig offline — ideal zum Lernen, wo immer du bist.",
@@ -31,6 +72,14 @@ PROMOTIONAL_TEXT_BY_LOCALE = {
 def promotional_text(locale: str) -> str:
     """Return the managed promotional text for an App Store locale."""
     return PROMOTIONAL_TEXT_BY_LOCALE.get(locale.split("-", 1)[0].lower(), PROMOTIONAL_TEXT)
+
+
+def privacy_policy_url(bundle_id: str) -> str:
+    """Return the standard published privacy-policy URL for an app bundle ID."""
+    app_name = re.sub(r"[^a-z0-9]+", "_", bundle_id.rsplit(".", 1)[-1].lower()).strip("_")
+    if not app_name:
+        raise DeployError(f"Cannot derive privacy-policy name from bundle ID: {bundle_id}")
+    return f"{PRIVACY_POLICY_BASE_URL}/{app_name}_privacy_policy"
 
 
 def b64(value: bytes) -> str:
@@ -74,6 +123,35 @@ class APIRequestError(DeployError):
             and error.get("source", {}).get("pointer") == "/data/attributes/locale"
             for error in errors
         )
+
+    def existing_resource_id(self) -> Optional[str]:
+        """Return the resource ID Apple names in an ALREADY_EXISTS response."""
+        if self.status != 409:
+            return None
+        try:
+            errors = json.loads(self.response).get("errors", [])
+        except json.JSONDecodeError:
+            return None
+        for error in errors:
+            if error.get("code") != "STATE_ERROR.ALREADY_EXISTS":
+                continue
+            # Product-version conflicts include: "... inflight version with id
+            # '<uuid>' ...".  Use that authoritative ID instead of attempting
+            # another create while App Store Connect's collection catches up.
+            match = re.search(r"\b(?:version|resource) with id '([^']+)'", error.get("detail", ""))
+            if match:
+                return match.group(1)
+        return None
+
+    def already_exists(self) -> bool:
+        """Whether Apple rejected a create because the resource already exists."""
+        if self.status != 409:
+            return False
+        try:
+            errors = json.loads(self.response).get("errors", [])
+        except json.JSONDecodeError:
+            return False
+        return any(error.get("code") == "STATE_ERROR.ALREADY_EXISTS" for error in errors)
 
 
 class ASC:
@@ -136,7 +214,7 @@ class ASC:
                 # Retrying cannot make a field editable.  Surface this precise
                 # response immediately so the per-field patcher can skip it.
                 state_error = APIRequestError(method, url, e.code, content)
-                if state_error.unavailable_attribute() or state_error.duplicate_locale():
+                if state_error.unavailable_attribute() or state_error.duplicate_locale() or state_error.already_exists():
                     raise state_error
                 retry_after = e.headers.get("Retry-After")
                 if e.code not in RETRYABLE: break
@@ -279,8 +357,11 @@ class Deployer:
         ac = self.cfg["app"]
         self.app = self.find("/v1/apps?limit=200", "bundleId", ac["bundleId"])
         if self.app:
-            # App attributes are opt-in: do not overwrite account settings unless named in config.
-            wanted = ac.get("attributes", {})
+            # App attributes are opt-in except the fixed content-rights declaration.
+            wanted = {
+                **ac.get("attributes", {}),
+                "contentRightsDeclaration": CONTENT_RIGHTS_DECLARATION,
+            }
             changed = {k:v for k,v in wanted.items() if self.app.get("attributes",{}).get(k) != v}
             if changed: self.api.mutate_editable_fields(f"/v1/apps/{self.app['id']}", "apps", self.app["id"], changed, label="app")
             logging.info("Reusing app %s", self.app["id"]); return
@@ -302,6 +383,77 @@ class Deployer:
         attrs.update({"platform":vc.get("platform","IOS"), "versionString":vc["versionString"]})
         return self.api.mutate("POST", "/v1/appStoreVersions", data("appStoreVersions", attrs, {"app":relationship("apps",self.app["id"])}))["data"]
 
+    def ensure_primary_category(self) -> None:
+        """Set the app's primary App Store category to Education."""
+        self.api.step("set primary App Store category to Education")
+        app_infos = self.api.collection(f"/v1/apps/{self.app['id']}/appInfos?limit=200")
+        if not app_infos:
+            raise DeployError(f"App {self.app['id']} has no App Info resource")
+        app_info = app_infos[0]
+        current = self.api.request("GET", f"/v1/appInfos/{app_info['id']}/primaryCategory") or {}
+        if current.get("data", {}).get("id") == PRIMARY_CATEGORY_ID:
+            return
+        self.api.mutate(
+            "PATCH",
+            f"/v1/appInfos/{app_info['id']}",
+            data(
+                "appInfos",
+                rel={"primaryCategory": relationship("appCategories", PRIMARY_CATEGORY_ID)},
+                ident=app_info["id"],
+            ),
+        )
+
+    def ensure_age_ratings(self) -> None:
+        """Set every age-rating declaration to the non-content/no-feature value."""
+        self.api.step("set all age-rating declarations to No")
+        app_infos = self.api.collection(f"/v1/apps/{self.app['id']}/appInfos?limit=200")
+        if not app_infos:
+            raise DeployError(f"App {self.app['id']} has no App Info resource")
+        declaration = (
+            self.api.request("GET", f"/v1/appInfos/{app_infos[0]['id']}/ageRatingDeclaration") or {}
+        ).get("data")
+        if not declaration:
+            raise DeployError(f"App Info {app_infos[0]['id']} has no age-rating declaration")
+        changed = {
+            field: value for field, value in AGE_RATING_DECLARATION.items()
+            if declaration.get("attributes", {}).get(field) != value
+        }
+        if changed:
+            self.api.mutate(
+                "PATCH",
+                f"/v1/ageRatingDeclarations/{declaration['id']}",
+                data("ageRatingDeclarations", changed, ident=declaration["id"]),
+            )
+
+    def ensure_review_details(self, version: Dict[str,Any]) -> None:
+        """Create or reconcile the fixed App Review information for a version."""
+        self.api.step("synchronize App Review contact information")
+        response = self.api.request("GET", f"/v1/appStoreVersions/{version['id']}/appStoreReviewDetail") or {}
+        review = response.get("data")
+        if review:
+            changed = {
+                field: value for field, value in REVIEW_DETAILS.items()
+                if review.get("attributes", {}).get(field) != value
+            }
+            if changed:
+                self.api.mutate_editable_fields(
+                    f"/v1/appStoreReviewDetails/{review['id']}",
+                    "appStoreReviewDetails",
+                    review["id"],
+                    changed,
+                    label=f"App Review details for {version.get('attributes', {}).get('versionString', version['id'])}",
+                )
+            return
+        self.api.mutate(
+            "POST",
+            "/v1/appStoreReviewDetails",
+            data(
+                "appStoreReviewDetails",
+                REVIEW_DETAILS,
+                {"appStoreVersion": relationship("appStoreVersions", version["id"])},
+            ),
+        )
+
     def locales(self) -> Dict[str,Any]:
         path = Path(self.cfg.get("localizationsPath", "localizations.json")); path = path if path.is_absolute() else self.root/path
         if not path.is_file(): raise DeployError(f"localizations.json not found: {path}")
@@ -322,10 +474,14 @@ class Deployer:
             ai = source.get("appInformation", {})
             av = source.get("appStoreVersion", source.get("appInformation", {}))
             info_attrs = {"locale":locale, **{k:ai[k] for k in ("name","subtitle","privacyPolicyUrl") if k in ai}}
+            # Every app uses the published policy named after its bundle suffix.
+            info_attrs["privacyPolicyUrl"] = privacy_policy_url(self.cfg["app"]["bundleId"])
             ver_attrs = {"locale":locale, **{k:av[k] for k in ("description","keywords","marketingUrl","supportUrl","whatsNew") if k in av}}
             # Keep the store listing's message consistent across every app.
             # This deliberately overrides stale values in localizations.json.
             ver_attrs["promotionalText"] = promotional_text(locale)
+            # Keep the App Store support link consistent across every locale.
+            ver_attrs["supportUrl"] = "https://asgarovsoftware.com/#contact"
             if not info_attrs.get("name"): raise DeployError(f"{locale}: appInformation.name is required")
             existing = next((x for x in old_info if x.get("attributes",{}).get("locale")==locale), None)
             if existing:
@@ -424,15 +580,35 @@ class Deployer:
         purchases = self.cfg.get("purchases", {})
         self.api.step("create/reuse subscriptions, in-app purchases, prices, and localizations")
         groups=self.api.collection(f"/v1/apps/{self.app['id']}/subscriptionGroups?limit=200")
+        # Product IDs are app-wide.  Search every existing group before a POST,
+        # because a product may have been created by an earlier deployment with
+        # a renamed or reconfigured group.
+        all_subs = [
+            subscription
+            for existing_group in groups
+            for subscription in self.api.collection(f"/v1/subscriptionGroups/{existing_group['id']}/subscriptions?limit=200")
+        ]
         for g in purchases.get("subscriptionGroups",[]):
             group=next((x for x in groups if x.get("attributes",{}).get("referenceName")==g["referenceName"]),None)
-            if not group: group=self.api.mutate("POST","/v1/subscriptionGroups",data("subscriptionGroups",{"referenceName":g["referenceName"]},{"app":relationship("apps",self.app["id"])}))["data"]
+            if not group:
+                group=self.api.mutate("POST","/v1/subscriptionGroups",data("subscriptionGroups",{"referenceName":g["referenceName"]},{"app":relationship("apps",self.app["id"])}))["data"]
+                groups.append(group)
             subs=self.api.collection(f"/v1/subscriptionGroups/{group['id']}/subscriptions?limit=200")
             for p in g.get("subscriptions",[]):
-                product=next((x for x in subs if x.get("attributes",{}).get("productId")==p["productId"]),None)
+                product=next((x for x in all_subs if x.get("attributes",{}).get("productId")==p["productId"]),None)
                 if not product:
                     attrs={k:p[k] for k in ("name","productId","subscriptionPeriod","familySharable") if k in p}
-                    product=self.api.mutate("POST","/v1/subscriptions",data("subscriptions",attrs,{"group":relationship("subscriptionGroups",group["id"])}))["data"]
+                    try:
+                        product=self.api.mutate("POST","/v1/subscriptions",data("subscriptions",attrs,{"group":relationship("subscriptionGroups",group["id"])}))["data"]
+                    except APIRequestError as error:
+                        if not error.already_exists(): raise
+                        # A previous run (or another deployer) created it.  Do
+                        # not retry the POST: refresh and continue its setup.
+                        logging.info("Subscription %s already exists; reusing it", p["productId"])
+                        subs=self.api.collection(f"/v1/subscriptionGroups/{group['id']}/subscriptions?limit=200")
+                        product=next((x for x in subs if x.get("attributes",{}).get("productId")==p["productId"]),None)
+                        if not product: raise DeployError(f"Subscription {p['productId']} already exists but is not in subscription group {group['id']}")
+                if product not in all_subs: all_subs.append(product)
                 self.product_version_locales(product,"subscription",locales)
                 self.subscription_price(product,p)
         # Apple intentionally does not expose a GET_COLLECTION operation for
@@ -443,20 +619,34 @@ class Deployer:
             product=next((x for x in all_iap if x.get("attributes",{}).get("productId")==p["productId"]),None)
             if not product:
                 attrs={k:p[k] for k in ("name","productId","inAppPurchaseType","familySharable","reviewNote") if k in p}
-                product=self.api.mutate("POST","/v2/inAppPurchases",data("inAppPurchases",attrs,{"app":relationship("apps",self.app["id"])}))["data"]
+                try:
+                    product=self.api.mutate("POST","/v2/inAppPurchases",data("inAppPurchases",attrs,{"app":relationship("apps",self.app["id"])}))["data"]
+                except APIRequestError as error:
+                    if not error.already_exists(): raise
+                    logging.info("In-app purchase %s already exists; reusing it", p["productId"])
+                    all_iap=self.api.collection(f"/v1/apps/{self.app['id']}/inAppPurchasesV2?limit=200")
+                    product=next((x for x in all_iap if x.get("attributes",{}).get("productId")==p["productId"]),None)
+                    if not product: raise DeployError(f"In-app purchase {p['productId']} already exists but could not be retrieved")
             self.product_version_locales(product,"iap",locales); self.iap_price(product,p)
 
     def product_version_locales(self, product: Dict[str,Any], kind: str, locales: Dict[str,Any]) -> None:
         version_type="subscriptionVersions" if kind=="subscription" else "inAppPurchaseVersions"
         parent="/v1/subscriptions" if kind=="subscription" else "/v2/inAppPurchases"
+        pid=product.get("attributes",{}).get("productId")
         versions=self.api.collection(f"{parent}/{product['id']}/versions?limit=200")
         version=next((x for x in versions if x.get("attributes",{}).get("state")=="PREPARE_FOR_SUBMISSION"),None)
         if not version:
             rel="subscription" if kind=="subscription" else "inAppPurchase"
-            version=self.api.mutate("POST",f"/v1/{version_type}",data(version_type,rel={rel:relationship("subscriptions" if kind=="subscription" else "inAppPurchases",product["id"])}))["data"]
+            try:
+                version=self.api.mutate("POST",f"/v1/{version_type}",data(version_type,rel={rel:relationship("subscriptions" if kind=="subscription" else "inAppPurchases",product["id"])}))["data"]
+            except APIRequestError as error:
+                version_id=error.existing_resource_id()
+                if not version_id: raise
+                logging.info("Reusing existing in-flight %s for %s", version_type, pid)
+                version=(self.api.request("GET", f"/v1/{version_type}/{version_id}", allow=()) or {}).get("data")
+                if not version: raise DeployError(f"Apple reported existing {version_type} {version_id}, but it could not be retrieved")
         old=self.api.collection(f"/v1/{version_type}/{version['id']}/localizations?limit=200")
         typ="subscriptionLocalizations" if kind=="subscription" else "inAppPurchaseLocalizations"
-        pid=product.get("attributes",{}).get("productId")
         for locale, source in locales.items():
             src=source.get("subscriptions",{}).get(pid) or source.get("inAppPurchases",{}).get(pid)
             if not src: continue
@@ -554,9 +744,9 @@ class Deployer:
         self.wait_for_valid_build_and_attach(version, build_id, max(0, int(deadline - time.monotonic())))
 
     def run(self) -> None:
-        self.ensure_app(); existing_build=self.uploaded_build()
+        self.ensure_app(); self.ensure_age_ratings(); self.ensure_primary_category(); existing_build=self.uploaded_build()
         if existing_build is None: self.prepare_ipa()
-        version=self.ensure_version(); locales=self.locales(); version_locales=self.upsert_localizations(version,locales); self.media(version_locales); self.ensure_products(locales); self.upload_build(version, existing_build); self.save()
+        version=self.ensure_version(); self.ensure_review_details(version); locales=self.locales(); version_locales=self.upsert_localizations(version,locales); self.media(version_locales); self.ensure_products(locales); self.upload_build(version, existing_build); self.save()
         self.api.step("deployment API reconciliation complete")
 
 
