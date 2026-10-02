@@ -236,6 +236,44 @@ class Deployer:
             else: raise DeployError(f"Xcode export did not create the expected IPA: {ipa}")
         logging.info("Created signed IPA: %s", ipa)
 
+    def build_coordinates(self) -> tuple[Dict[str, Any], str, str, str]:
+        """Return the configured App Store build identity."""
+        build = self.cfg.get("build")
+        if not build or not build.get("bundleVersion"):
+            raise DeployError("build.bundleVersion is required for an App Store deployment")
+        return (
+            build,
+            str(build.get("shortVersion", self.cfg["version"]["versionString"])),
+            str(build["bundleVersion"]),
+            str(build.get("platform", self.cfg["version"].get("platform", "IOS"))),
+        )
+
+    def uploaded_build(self) -> Optional[Dict[str, Any]]:
+        """Find this exact short-version/build-number pair, if Apple has it."""
+        _, short, number, platform = self.build_coordinates()
+        self.api.step("find matching uploaded build")
+        query = urllib.parse.urlencode({
+            "filter[app]": self.app["id"],
+            "filter[version]": number,
+            "include": "preReleaseVersion",
+            "limit": "200",
+        })
+        response = self.api.request("GET", f"/v1/builds?{query}", allow=()) or {}
+        prerelease_versions = {item["id"]: item for item in response.get("included", []) if item.get("type") == "preReleaseVersions"}
+        for candidate in response.get("data", []):
+            if str(candidate.get("attributes", {}).get("version")) != number:
+                continue
+            prerelease = candidate.get("relationships", {}).get("preReleaseVersion", {}).get("data") or {}
+            prerelease_id = prerelease.get("id")
+            details = prerelease_versions.get(prerelease_id)
+            if details is None and prerelease_id:
+                details = (self.api.request("GET", f"/v1/preReleaseVersions/{prerelease_id}", allow=()) or {}).get("data")
+            attributes = (details or {}).get("attributes", {})
+            if attributes.get("version") == short and attributes.get("platform") == platform:
+                logging.info("Reusing uploaded build %s (%s (%s))", candidate["id"], short, number)
+                return candidate
+        return None
+
     def ensure_app(self) -> None:
         self.api.step("find existing App Store app record")
         ac = self.cfg["app"]
@@ -456,15 +494,28 @@ class Deployer:
         body=data("inAppPurchasePriceSchedules",rel={"inAppPurchase":relationship("inAppPurchases",product["id"]),"baseTerritory":relationship("territories","USA"),"manualPrices":{"data":[{"type":"inAppPurchasePrices","id":temp}]}}); body["included"]=[{"type":"inAppPurchasePrices","id":temp,"attributes":{},"relationships":{"inAppPurchaseV2":relationship("inAppPurchases",product["id"]),"inAppPurchasePricePoint":relationship("inAppPurchasePricePoints",point["id"])}}]
         self.api.mutate("POST","/v1/inAppPurchasePriceSchedules",body)
 
-    def upload_build(self, version: Dict[str,Any]) -> None:
+    def wait_for_valid_build_and_attach(self, version: Dict[str,Any], build_id: str, timeout: int) -> None:
+        """Wait for Apple's validation, then associate the build with the version."""
+        deadline=time.monotonic()+timeout
+        self.api.step("wait for build validation and attach it to version")
+        while time.monotonic() < deadline:
+            resource=(self.api.request("GET",f"/v1/builds/{build_id}",allow=()) or {}).get("data",{})
+            state=resource.get("attributes",{}).get("processingState")
+            if state == "VALID":
+                self.api.mutate("PATCH",f"/v1/appStoreVersions/{version['id']}/relationships/build",{"data":{"type":"builds","id":build_id}})
+                return
+            if state == "INVALID": raise DeployError(f"Apple marked build {build_id} invalid")
+            time.sleep(15)
+        raise DeployError("Timed out waiting for Apple build validation; rerun safely later")
+
+    def upload_build(self, version: Dict[str,Any], existing_build: Optional[Dict[str,Any]]=None) -> None:
         """Use Apple's Build Upload REST workflow; no Transporter or Fastlane involved."""
-        build = self.cfg.get("build")
-        if not build: raise DeployError("build.ipaPath and build.bundleVersion are required for an App Store deployment")
+        build, short, number, platform = self.build_coordinates()
+        if existing_build:
+            self.wait_for_valid_build_and_attach(version, existing_build["id"], int(build.get("processingTimeoutSeconds",1800)))
+            return
         ipa = Path(build["ipaPath"]); ipa = ipa if ipa.is_absolute() else self.root / ipa
         if not ipa.is_file() or ipa.suffix.lower() != ".ipa": raise DeployError(f"build.ipaPath must name an existing .ipa: {ipa}")
-        short = build.get("shortVersion", self.cfg["version"]["versionString"])
-        number = str(build["bundleVersion"])
-        platform = build.get("platform", self.cfg["version"].get("platform", "IOS"))
         self.api.step("find or create API build upload")
         query = urllib.parse.urlencode({"filter[cfBundleShortVersionString]":short,"filter[cfBundleVersion]":number,"filter[platform]":platform,"limit":"200"})
         uploads = self.api.collection(f"/v1/apps/{self.app['id']}/buildUploads?{query}")
@@ -500,19 +551,12 @@ class Deployer:
             if rel: build_id=rel["id"]; break
             time.sleep(15)
         if not build_id: raise DeployError("Timed out waiting for Apple to create the Build resource; rerun safely later")
-        self.api.step("wait for build validation and attach it to version")
-        while time.monotonic() < deadline:
-            resource=(self.api.request("GET",f"/v1/builds/{build_id}",allow=()) or {}).get("data",{})
-            state=resource.get("attributes",{}).get("processingState")
-            if state == "VALID":
-                self.api.mutate("PATCH",f"/v1/appStoreVersions/{version['id']}/relationships/build",{"data":{"type":"builds","id":build_id}})
-                return
-            if state == "INVALID": raise DeployError(f"Apple marked build {build_id} invalid")
-            time.sleep(15)
-        raise DeployError("Timed out waiting for Apple build validation; rerun safely later")
+        self.wait_for_valid_build_and_attach(version, build_id, max(0, int(deadline - time.monotonic())))
 
     def run(self) -> None:
-        self.prepare_ipa(); self.ensure_app(); version=self.ensure_version(); locales=self.locales(); version_locales=self.upsert_localizations(version,locales); self.media(version_locales); self.ensure_products(locales); self.upload_build(version); self.save()
+        self.ensure_app(); existing_build=self.uploaded_build()
+        if existing_build is None: self.prepare_ipa()
+        version=self.ensure_version(); locales=self.locales(); version_locales=self.upsert_localizations(version,locales); self.media(version_locales); self.ensure_products(locales); self.upload_build(version, existing_build); self.save()
         self.api.step("deployment API reconciliation complete")
 
 

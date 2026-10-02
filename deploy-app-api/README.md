@@ -20,7 +20,7 @@ The generated `deployment.json` is a complete starting shape. Required fields ar
 - `build.ipaPath` and `build.bundleVersion`
 - `localizationsPath`
 
-The required positional `root` argument is the app-assets directory. `build.ipaPath`, `localizationsPath`, and media file paths are relative to that directory unless absolute. Set `build.createIpa` to `true` and provide `projectPath` plus `scheme` to have the deployer archive and export the signed IPA through Xcode before it makes App Store Connect changes. `archivePath`, `exportPath`, `configuration`, `exportOptions`, and `allowProvisioningUpdates` are optional; the latter explicitly permits Xcode to obtain automatic-signing assets from Apple. Otherwise, provide an already-exported IPA at `build.ipaPath`.
+The required positional `root` argument is the app-assets directory. `build.ipaPath`, `localizationsPath`, and media file paths are relative to that directory unless absolute. Before it archives, the deployer searches App Store Connect for the configured short version, build number, and platform. If that build has already been uploaded, it skips Xcode entirely and waits for that build to validate before attaching it to the App Store version; an IPA is not required on that path. Otherwise, set `build.createIpa` to `true` and provide `projectPath` plus `scheme` to have the deployer archive and export the signed IPA. `archivePath`, `exportPath`, `configuration`, `exportOptions`, and `allowProvisioningUpdates` are optional; the latter explicitly permits Xcode to obtain automatic-signing assets from Apple. If `createIpa` is false, provide an already-exported IPA at `build.ipaPath`.
 
 Use `--build-only` to create and verify the configured IPA without contacting App Store Connect:
 
