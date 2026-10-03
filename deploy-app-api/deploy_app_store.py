@@ -11,6 +11,7 @@ from typing import Any, Dict, Iterable, List, Optional
 
 API = "https://api.appstoreconnect.apple.com"
 RETRYABLE = {408, 409, 425, 429, 500, 502, 503, 504}
+EDITABLE_STATES = {"PREPARE_FOR_SUBMISSION", "DEVELOPER_REJECTED", "REJECTED", "METADATA_REJECTED", "INVALID_BINARY"}
 PROMOTIONAL_TEXT = "No account, no registration, fully offline — ideal for learning wherever you are."
 PRIMARY_CATEGORY_ID = "EDUCATION"
 CONTENT_RIGHTS_DECLARATION = "DOES_NOT_USE_THIRD_PARTY_CONTENT"
@@ -100,7 +101,7 @@ class APIRequestError(DeployError):
     """An App Store Connect response that could not be completed."""
     def __init__(self, method: str, url: str, status: Optional[int], response: str):
         self.method, self.url, self.status, self.response = method, url, status, response
-        super().__init__(f"{method} {url} failed after retries: " + (f"HTTP {status}: {response[:1200]}" if status else response))
+        super().__init__(f"{method} {url} failed: " + (f"HTTP {status}: {response[:1200]}" if status else response))
 
     def unavailable_attribute(self) -> Optional[str]:
         """Return Apple's locked attribute name for a state-error response, if any."""
@@ -111,6 +112,11 @@ class APIRequestError(DeployError):
         except json.JSONDecodeError:
             return None
         for error in errors:
+            if error.get("code") == "ENTITY_ERROR.ATTRIBUTE.INVALID.INVALID_STATE":
+                pointer = error.get("source", {}).get("pointer", "")
+                match = re.fullmatch(r"/data/attributes/([^/]+)", pointer)
+                if match:
+                    return match.group(1)
             detail = error.get("detail", "")
             prefix, suffix = "Attribute '", "' cannot be edited at this time"
             if error.get("code") == "STATE_ERROR" and detail.startswith(prefix) and detail.endswith(suffix):
@@ -252,7 +258,7 @@ class ASC:
             except APIRequestError as error:
                 unavailable = error.unavailable_attribute()
                 if unavailable == field:
-                    logging.info("Skipping %s.%s because field is not available for edit", label, field)
+                    logging.warning("Skipping %s.%s because field is not available for edit; requested value was not applied", label, field)
                     continue
                 raise
 
@@ -382,21 +388,31 @@ class Deployer:
         attrs = {k:vc[k] for k in ("copyright","releaseType","usesIdfa","earliestReleaseDate") if k in vc}
         attrs.update(vc.get("attributes", {}))
         if v:
-            state = v.get("attributes", {}).get("appStoreState")
-            if state not in ("PREPARE_FOR_SUBMISSION", "DEVELOPER_REJECTED", "REJECTED", "METADATA_REJECTED", "INVALID_BINARY"):
+            state = v.get("attributes", {}).get("appVersionState") or v.get("attributes", {}).get("appStoreState")
+            if state not in EDITABLE_STATES:
                 raise DeployError(f"Version {vc['versionString']} already exists in non-editable state {state}; choose a new versionString")
             if attrs: self.api.mutate_editable_fields(f"/v1/appStoreVersions/{v['id']}", "appStoreVersions", v["id"], attrs, label=f"version {vc['versionString']}")
             return v
         attrs.update({"platform":vc.get("platform","IOS"), "versionString":vc["versionString"]})
         return self.api.mutate("POST", "/v1/appStoreVersions", data("appStoreVersions", attrs, {"app":relationship("apps",self.app["id"])}))["data"]
 
+    def editable_app_info(self) -> Dict[str,Any]:
+        """Select the upcoming release's metadata, never the live App Info by order."""
+        app_infos = self.api.collection(f"/v1/apps/{self.app['id']}/appInfos?limit=200")
+        def state(info: Dict[str,Any]) -> Optional[str]:
+            attrs = info.get("attributes", {})
+            return attrs.get("state") or attrs.get("appStoreState")
+        editable = [info for info in app_infos if state(info) in EDITABLE_STATES]
+        if len(editable) != 1:
+            observed = ", ".join(f"{info['id']}={state(info)}" for info in app_infos) or "none"
+            raise DeployError(f"Expected one editable App Info for app {self.app['id']}; found {len(editable)} ({observed}). Ensure the target version is editable, then rerun; live metadata will not be selected.")
+        logging.info("Using editable App Info %s (%s)", editable[0]["id"], state(editable[0]))
+        return editable[0]
+
     def ensure_primary_category(self) -> None:
         """Set the app's primary App Store category to Education."""
         self.api.step("set primary App Store category to Education")
-        app_infos = self.api.collection(f"/v1/apps/{self.app['id']}/appInfos?limit=200")
-        if not app_infos:
-            raise DeployError(f"App {self.app['id']} has no App Info resource")
-        app_info = app_infos[0]
+        app_info = self.editable_app_info()
         current = self.api.request("GET", f"/v1/appInfos/{app_info['id']}/primaryCategory") or {}
         if current.get("data", {}).get("id") == PRIMARY_CATEGORY_ID:
             return
@@ -470,10 +486,7 @@ class Deployer:
 
     def upsert_localizations(self, version: Dict[str,Any], locales: Dict[str,Any]) -> Dict[str,Dict[str,Any]]:
         self.api.step("synchronize app-info and version localizations")
-        app_infos = self.api.collection(f"/v1/apps/{self.app['id']}/appInfos?limit=200")
-        if not app_infos:
-            raise DeployError(f"App {self.app['id']} has no App Info resource")
-        app_info = app_infos[0]
+        app_info = self.editable_app_info()
         old_info = self.api.collection(f"/v1/appInfos/{app_info['id']}/appInfoLocalizations?limit=200")
         old_ver = self.api.collection(f"/v1/appStoreVersions/{version['id']}/appStoreVersionLocalizations?limit=200")
         result = {}
@@ -860,9 +873,9 @@ class Deployer:
         self.wait_for_valid_build_and_attach(version, build_id, max(0, int(deadline - time.monotonic())))
 
     def run(self) -> None:
-        self.ensure_app(); self.ensure_age_ratings(); self.ensure_primary_category(); existing_build=self.uploaded_build()
+        self.ensure_app(); self.ensure_age_ratings(); existing_build=self.uploaded_build()
         if existing_build is None: self.prepare_ipa()
-        version=self.ensure_version(); self.ensure_review_details(version); locales=self.locales(); version_locales=self.upsert_localizations(version,locales); self.media(version_locales); self.ensure_products(locales); self.upload_build(version, existing_build); self.save()
+        version=self.ensure_version(); self.ensure_primary_category(); self.ensure_review_details(version); locales=self.locales(); version_locales=self.upsert_localizations(version,locales); self.media(version_locales); self.ensure_products(locales); self.upload_build(version, existing_build); self.save()
         self.api.step("deployment API reconciliation complete")
 
 

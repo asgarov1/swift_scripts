@@ -101,3 +101,11 @@ Apple-side processing can exceed the default 30-minute `build.processingTimeoutS
 Create the App Store Connect app record and its bundle identifier/signing entitlement once in the Apple portals first. Apple’s current public Apps API is read/modify only, so an API-only script cannot create this initial record; after that prerequisite, the deployment flow is REST API-only. Also truthfully configure privacy answers, age-rating declarations, export compliance, contracts/tax/banking, and any App Review details beyond the fixed contact/no-login/note fields above; these workflows are not safely inferable from an IPA and some cannot be fully created by the public API. The script intentionally does not submit for review.
 
 Apple references used for this implementation: [Build uploads](https://developer.apple.com/documentation/appstoreconnectapi/buildupload), [asset uploads](https://developer.apple.com/documentation/appstoreconnectapi/uploading-assets-to-app-store-connect), and [v2 purchase-localization migration](https://developer.apple.com/documentation/appstoreconnectapi/migrating-in-app-purchase-metadata-to-v2).
+
+## Updating an existing release
+
+Set `version.versionString` to the next release (for example `2.1`). The deployer reuses the app record and creates or reuses that editable App Store version. After ensuring the version exists, it selects the editable App Info for category and localized app information by `state` (or legacy `appStoreState`), rather than assuming the first App Info is editable. Apple can return both live and upcoming App Info records; see [Apple’s App Info reference](https://developer.apple.com/documentation/appstoreconnectapi/get-v1-apps-_id_-appinfos). Version localizations remain attached to the requested App Store version.
+
+If no unique editable App Info exists, deployment stops with the observed IDs and states instead of targeting live metadata. Ensure the target version is editable and rerun. Attribute errors with code `ENTITY_ERROR.ATTRIBUTE.INVALID.INVALID_STATE` are handled immediately, like the older `STATE_ERROR` response. A locked field produces a warning that its requested value was not applied; other editable fields continue to synchronize.
+
+Offline regression checks: `python3 -B -m unittest discover -s deploy-app-api/tests -v`.

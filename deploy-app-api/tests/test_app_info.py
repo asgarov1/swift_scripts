@@ -1,0 +1,107 @@
+import copy
+import io
+import json
+import sys
+import unittest
+import urllib.error
+from pathlib import Path
+from unittest.mock import Mock, patch
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import deploy_app_store as deploy
+
+
+def info(ident, state, field="state"):
+    return {"id": ident, "attributes": {field: state}}
+
+
+class AppInfoTests(unittest.TestCase):
+    def setUp(self):
+        self.client = deploy.Deployer.__new__(deploy.Deployer)
+        self.client.app = {"id": "app"}
+        self.client.cfg = copy.deepcopy(deploy.EXAMPLE)
+        self.client.api = Mock()
+
+    def test_selects_draft_regardless_of_order_or_state_field(self):
+        for field in ("state", "appStoreState"):
+            draft = info("draft", "PREPARE_FOR_SUBMISSION", field)
+            live = info("live", "READY_FOR_SALE", field)
+            for records in ([live, draft], [draft, live], [draft]):
+                with self.subTest(field=field, records=records):
+                    self.client.api.collection.return_value = records
+                    self.assertEqual(self.client.editable_app_info(), draft)
+
+    def test_no_fallback_to_live_unknown_or_ambiguous_info(self):
+        for records in ([], [info("live", "READY_FOR_DISTRIBUTION")],
+                        [info("unknown", None)],
+                        [info("a", "REJECTED"), info("b", "PREPARE_FOR_SUBMISSION")]):
+            self.client.api.collection.return_value = records
+            with self.assertRaises(deploy.DeployError):
+                self.client.editable_app_info()
+            self.client.api.mutate.assert_not_called()
+
+    def test_current_state_takes_precedence_over_legacy_state(self):
+        self.client.api.collection.return_value = [
+            {"id": "live", "attributes": {"state": "READY_FOR_DISTRIBUTION", "appStoreState": "PREPARE_FOR_SUBMISSION"}}]
+        with self.assertRaises(deploy.DeployError):
+            self.client.editable_app_info()
+
+    def test_category_and_localizations_use_draft(self):
+        def collection(path):
+            if path == "/v1/apps/app/appInfos?limit=200":
+                return [info("live", "READY_FOR_SALE"), info("draft", "PREPARE_FOR_SUBMISSION")]
+            self.assertIn(path, ["/v1/appInfos/draft/appInfoLocalizations?limit=200",
+                                 "/v1/appStoreVersions/v21/appStoreVersionLocalizations?limit=200"])
+            return []
+        self.client.api.collection.side_effect = collection
+        self.client.api.request.return_value = {"data": {"id": "OTHER"}}
+        self.client.api.mutate.return_value = {"data": {"id": "new"}}
+        self.client.ensure_primary_category()
+        self.assertEqual(self.client.api.mutate.call_args.args[1], "/v1/appInfos/draft")
+        self.client.upsert_localizations({"id": "v21"}, {"en-US": {"appInformation": {"name": "German A1"}}})
+        calls = self.client.api.mutate.call_args_list
+        self.assertEqual(calls[1].args[2]["data"]["relationships"]["appInfo"]["data"]["id"], "draft")
+        self.assertEqual(calls[2].args[2]["data"]["relationships"]["appStoreVersion"]["data"]["id"], "v21")
+
+    def test_existing_version_supports_current_state_field(self):
+        version = {"id": "v21", "attributes": {"platform": "IOS", "versionString": "1.0", "appVersionState": "PREPARE_FOR_SUBMISSION"}}
+        self.client.api.collection.return_value = [version]
+        self.assertEqual(self.client.ensure_version(), version)
+        self.client.api.mutate.assert_not_called()
+
+    def test_version_is_created_before_category(self):
+        events = []
+        names = ("ensure_app", "ensure_age_ratings", "app_price", "app_availability", "uploaded_build", "prepare_ipa",
+                 "ensure_version", "ensure_primary_category", "ensure_review_details", "locales",
+                 "upsert_localizations", "media", "ensure_products", "upload_build", "save")
+        for name in names:
+            setattr(self.client, name, Mock(side_effect=lambda *args, name=name: events.append(name)))
+        self.client.run()
+        self.assertLess(events.index("ensure_version"), events.index("ensure_primary_category"))
+
+
+class ErrorTests(unittest.TestCase):
+    def test_reported_error_does_not_retry(self):
+        body = json.dumps({"errors": [{"code": "ENTITY_ERROR.ATTRIBUTE.INVALID.INVALID_STATE",
+            "detail": "The field 'name' can not be modified in the current state.",
+            "source": {"pointer": "/data/attributes/name"}}]})
+        api = deploy.ASC(deploy.EXAMPLE, False)
+        error = urllib.error.HTTPError(deploy.API, 409, "Conflict", {}, io.BytesIO(body.encode()))
+        with patch.object(api, "token", return_value="test"), patch.object(deploy.urllib.request, "urlopen", side_effect=error) as request, patch.object(deploy.time, "sleep") as sleep:
+            with self.assertRaises(deploy.APIRequestError) as caught:
+                api.request("PATCH", "/v1/appInfoLocalizations/locale", {})
+            self.assertEqual(caught.exception.unavailable_attribute(), "name")
+            request.assert_called_once()
+            sleep.assert_not_called()
+
+    def test_unrelated_validation_error_is_not_a_locked_field(self):
+        body = json.dumps({"errors": [{"code": "ENTITY_ERROR.ATTRIBUTE.INVALID", "source": {"pointer": "/data/attributes/name"}}]})
+        self.assertIsNone(deploy.APIRequestError("PATCH", "url", 409, body).unavailable_attribute())
+
+    def test_legacy_state_error_is_still_recognized(self):
+        body = json.dumps({"errors": [{"code": "STATE_ERROR", "detail": "Attribute 'name' cannot be edited at this time"}]})
+        self.assertEqual(deploy.APIRequestError("PATCH", "url", 409, body).unavailable_attribute(), "name")
+
+
+if __name__ == "__main__":
+    unittest.main()
