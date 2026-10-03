@@ -5,26 +5,26 @@
     "privateKeyPath": "//Users/asgarov1/Documents/keys/appstore/CodexCli_AuthKey_327MHGVU62.p8"
   },
   "app": {
-    "bundleId": "com.asgarovsoftware.jlingo.korean-topik-ii",
-    "sku": "Jlingo Korean Topic II",
+    "bundleId": "com.asgarovsoftware.jlingo.german.a1",
+    "sku": "Jlingo German A1",
     "primaryLocale": "en-US"
   },
   "version": {
     "platform": "IOS",
-    "versionString": "1.0",
+    "versionString": "2.1",
     "releaseType": "MANUAL",
     "usesIdfa": false,
     "copyright": "2026 Asgarov"
   },
   "build": {
-    "ipaPath": "build/korean-topik-ii.ipa",
-    "bundleVersion": "4",
+    "ipaPath": "build/german_a1.ipa",
+    "bundleVersion": "1",
     "processingTimeoutSeconds": 1800,
     "createIpa": true,
-    "projectPath": "korean-topik-ii.xcodeproj",
-    "scheme": "korean-topik-ii",
+    "projectPath": "german_a1.xcodeproj",
+    "scheme": "german_a1",
     "configuration": "Release",
-    "archivePath": "build/korean-topik-ii.xcarchive",
+    "archivePath": "build/german_a1.xcarchive",
     "exportPath": "build",
     "allowProvisioningUpdates": true,
     "exportOptions": {
@@ -34,16 +34,10 @@
       "teamID": "2ZQKN8W3SJ"
     }
   },
-  "localizationsPath": "korean-topik-ii/localizations.json",
+  "localizationsPath": "store-metadata/localizations.json",
   "media": {
-    "screenshots": [
-      { "locale": "en-US", "displayType": "APP_IPHONE_67", "folder": "screenshots/iphone" },
-      { "locale": "en-US", "displayType": "APP_IPAD_PRO_3GEN_129", "folder": "screenshots/ipad" }
-    ],
-    "previews": [
-      { "locale": "en-US", "displayType": "IPHONE_67", "files": ["previews/jlingo-app-preview-IPHONE_67.mp4"] },
-      { "locale": "en-US", "displayType": "IPAD_PRO_3GEN_129", "files": ["previews/jlingo-app-preview-IPAD_PRO_3GEN_129.mp4"] }
-    ]
+    "screenshots": [],
+    "previews": []
   },
   "purchases": {
     "subscriptionGroups": [
@@ -52,14 +46,14 @@
         "subscriptions": [
           {
             "name": "Monthly Subscription",
-            "productId": "com.asgarovsoftware.korean_topik_ii.premium",
+            "productId": "com.german_a1.premium.monthly",
             "subscriptionPeriod": "ONE_MONTH",
             "familySharable": false,
             "price": 6.99
           },
           {
             "name": "Quarterly (3 months) Subscription",
-            "productId": "com.asgarovsoftware.korean_topik_ii.premium.3months",
+            "productId": "com.asgarovsoftware.german_a1.premium.3months",
             "subscriptionPeriod": "THREE_MONTHS",
             "familySharable": false,
             "price": 14.99
@@ -69,11 +63,11 @@
     ],
     "inAppPurchases": [
       {
-        "name": "Lifetime Premium",
-        "productId": "com.asgarovsoftware.korean_topik_ii.premium.lifetime",
+        "name": "Lifetime Access",
+        "productId": "com.asgarovsoftware.german_a1.premium.lifetime",
         "inAppPurchaseType": "NON_CONSUMABLE",
         "familySharable": false,
-        "price": 42.0
+        "price": 44.99
       }
     ]
   }

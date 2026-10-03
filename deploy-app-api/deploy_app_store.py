@@ -16,35 +16,6 @@ PROMOTIONAL_TEXT = "No account, no registration, fully offline — ideal for lea
 PRIMARY_CATEGORY_ID = "EDUCATION"
 CONTENT_RIGHTS_DECLARATION = "DOES_NOT_USE_THIRD_PARTY_CONTENT"
 PRIVACY_POLICY_BASE_URL = "https://asgarov1.github.io/Privacy-Policies"
-AGE_RATING_DECLARATION = {
-    "advertising": False,
-    "alcoholTobaccoOrDrugUseOrReferences": "NONE",
-    "contests": "NONE",
-    "gambling": False,
-    "gamblingSimulated": "NONE",
-    "gunsOrOtherWeapons": "NONE",
-    "healthOrWellnessTopics": False,
-    "lootBox": False,
-    "medicalOrTreatmentInformation": "NONE",
-    "messagingAndChat": False,
-    "parentalControls": False,
-    "profanityOrCrudeHumor": "NONE",
-    "ageAssurance": False,
-    "sexualContentGraphicAndNudity": "NONE",
-    "sexualContentOrNudity": "NONE",
-    "socialMedia": False,
-    "socialMediaAgeRestricted": False,
-    "horrorOrFearThemes": "NONE",
-    "matureOrSuggestiveThemes": "NONE",
-    "unrestrictedWebAccess": False,
-    "userGeneratedContent": False,
-    "violenceCartoonOrFantasy": "NONE",
-    "violenceRealisticProlongedGraphicOrSadistic": "NONE",
-    "violenceRealistic": "NONE",
-    "ageRatingOverride": "NONE",
-    "ageRatingOverrideV2": "NONE",
-    "koreaAgeRatingOverride": "NONE",
-}
 REVIEW_DETAILS = {
     "contactFirstName": "Javid",
     "contactLastName": "Asgarov",
@@ -60,6 +31,31 @@ PRODUCT_REVIEW_NOTE = '''In order to see the "Unlock Premium":
 3. Scroll until 3rd word
 4. Click on any part with the "lock" icon'''
 PRODUCT_REVIEW_SCREENSHOT = Path(__file__).parent.parent / "Premium_with_three_options.jpg"
+# Jlingo's screenshot generator uses these directory names.  Keep this
+# ordered mapping as the shared client contract: it is intentionally not
+# inferred from arbitrary directories, which prevents a stray screenshot set
+# from creating an unintended App Store localization.
+JLINGO_SCREENSHOT_LOCALES = (
+    ("ar", "ar-SA"),
+    ("bg", "bg-BG"),
+    ("en", "en-US"),
+    ("fi", "fi"),
+    ("fr", "fr-FR"),
+    ("de", "de-DE"),
+    ("it", "it"),
+    ("ja", "ja"),
+    ("zh-Hans", "zh-Hans"),
+    ("pl", "pl"),
+    ("pt", "pt-PT"),
+    ("ru", "ru"),
+    ("sh", "hr"),
+    ("es", "es-ES"),
+    ("tr", "tr"),
+)
+JLINGO_SCREENSHOT_DISPLAYS = (
+    ("iphone", "APP_IPHONE_67"),
+    ("ipad", "APP_IPAD_PRO_3GEN_129"),
+)
 PROMOTIONAL_TEXT_BY_LOCALE = {
     "ar": "لا حساب، لا تسجيل، يعمل بالكامل دون اتصال بالإنترنت — مثالي للتعلّم أينما كنت.",
     "de": "Kein Konto, keine Registrierung, vollständig offline — ideal zum Lernen, wo immer du bist.",
@@ -454,28 +450,6 @@ class Deployer:
             ),
         )
 
-    def ensure_age_ratings(self) -> None:
-        """Set every age-rating declaration to the non-content/no-feature value."""
-        self.api.step("set all age-rating declarations to No")
-        app_infos = self.api.collection(f"/v1/apps/{self.app['id']}/appInfos?limit=200")
-        if not app_infos:
-            raise DeployError(f"App {self.app['id']} has no App Info resource")
-        declaration = (
-            self.api.request("GET", f"/v1/appInfos/{app_infos[0]['id']}/ageRatingDeclaration") or {}
-        ).get("data")
-        if not declaration:
-            raise DeployError(f"App Info {app_infos[0]['id']} has no age-rating declaration")
-        changed = {
-            field: value for field, value in AGE_RATING_DECLARATION.items()
-            if declaration.get("attributes", {}).get(field) != value
-        }
-        if changed:
-            self.api.mutate(
-                "PATCH",
-                f"/v1/ageRatingDeclarations/{declaration['id']}",
-                data("ageRatingDeclarations", changed, ident=declaration["id"]),
-            )
-
     def ensure_review_details(self, version: Dict[str,Any]) -> None:
         """Create or reconcile the fixed App Review information for a version."""
         self.api.step("synchronize App Review contact information")
@@ -593,11 +567,45 @@ class Deployer:
             self.api.mutate("PATCH",f"/v1/{route}/{reservation_id}",data(typ,{"uploaded":True,"sourceFileChecksum":checksum(file)},ident=reservation_id))
         logging.info("Uploaded %s %s", kind, file.name)
 
+    def jlingo_screenshot_specs(self, localizations: Dict[str, Dict[str, Any]], configured: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Return standard Jlingo screenshot folders for configured metadata locales.
+
+        Screenshot rendering and App Store Connect use different locale codes
+        for several languages (for example, ``en`` and ``en-US``).  A locale
+        is eligible only when it is defined in localizations.json; merely
+        producing a folder must never create incomplete store metadata.
+        """
+        configured_sets = {
+            (spec.get("locale"), spec.get("displayType"))
+            for spec in configured
+            if isinstance(spec, dict)
+        }
+        result = []
+        for folder_locale, store_locale in JLINGO_SCREENSHOT_LOCALES:
+            if store_locale not in localizations:
+                logging.info("Skipping Jlingo screenshots for %s: %s is not defined in localizations.json", folder_locale, store_locale)
+                continue
+            for device, display_type in JLINGO_SCREENSHOT_DISPLAYS:
+                if (store_locale, display_type) in configured_sets:
+                    continue
+                folder = self.root / "screenshots" / device / folder_locale
+                if folder.is_dir():
+                    result.append({"locale": store_locale, "displayType": display_type, "folder": str(folder)})
+        return result
+
     def media(self, localizations: Dict[str,Dict[str,Any]]) -> None:
         media = self.cfg.get("media", {})
         self.api.step("upload missing screenshots and previews")
         for kind, plural in (("screenshot","screenshots"),("preview","previews")):
-            for spec in media.get(plural, []):
+            specs = media.get(plural, [])
+            if not isinstance(specs, list):
+                raise DeployError(f"media.{plural} must be a list")
+            specs = list(specs)
+            if kind == "screenshot":
+                specs.extend(self.jlingo_screenshot_specs(localizations, specs))
+            for spec in specs:
+                if not isinstance(spec, dict):
+                    raise DeployError(f"{kind} media entries must be objects")
                 locale, display = spec["locale"], spec["displayType"]
                 if locale not in localizations: raise DeployError(f"media locale {locale} has no version localization")
                 aset=self.ensure_set(localizations[locale],kind,display)
@@ -826,15 +834,152 @@ class Deployer:
 
     def price_point(self,path:str,price:float)->Dict[str,Any]:
         return next((x for x in self.api.collection(path) if float(x.get("attributes",{}).get("customerPrice",-1))==float(price)), None) or (_ for _ in ()).throw(DeployError(f"No USA price point for {price}"))
+
+    def all_territories(self) -> List[Dict[str, str]]:
+        """Return every active App Store territory as a JSON:API linkage."""
+        if not hasattr(self, "_territory_links"):
+            territories = self.api.collection("/v1/territories?limit=200")
+            links = sorted(
+                ({"type": "territories", "id": territory["id"]} for territory in territories if territory.get("id")),
+                key=lambda territory: territory["id"],
+            )
+            if not links:
+                raise DeployError("App Store Connect returned no active territories")
+            self._territory_links = links
+        return self._territory_links
+
+    def app_price(self) -> None:
+        """Create the app's initial price schedule, defaulting to a free app."""
+        if (self.api.request("GET", f"/v1/apps/{self.app['id']}/appPriceSchedule") or {}).get("data"):
+            return
+        price = self.cfg.get("app", {}).get("price", 0)
+        if not isinstance(price, (int, float)) or isinstance(price, bool) or price < 0:
+            raise DeployError("app.price must be a non-negative USD amount")
+        point = self.price_point(
+            f"/v1/apps/{self.app['id']}/appPricePoints?filter[territory]=USA&limit=200",
+            float(price),
+        )
+        temporary_id = "${app-price}"
+        body = data(
+            "appPriceSchedules",
+            rel={
+                "app": relationship("apps", self.app["id"]),
+                "baseTerritory": relationship("territories", "USA"),
+                "manualPrices": {"data": [{"type": "appPrices", "id": temporary_id}]},
+            },
+        )
+        body["included"] = [{
+            "type": "appPrices",
+            "id": temporary_id,
+            "attributes": {"startDate": None},
+            "relationships": {"appPricePoint": relationship("appPricePoints", point["id"])},
+        }]
+        self.api.mutate("POST", "/v1/appPriceSchedules", body)
+
+    def app_availability(self) -> None:
+        """Make the app available in every active territory, now and in the future."""
+        territories = self.all_territories()
+        response = self.api.request("GET", f"/v1/apps/{self.app['id']}/appAvailabilityV2") or {}
+        availability = response.get("data")
+        if not availability:
+            temporary_ids = {territory["id"]: f"${{app-territory-{territory['id']}}}" for territory in territories}
+            body = data(
+                "appAvailabilities",
+                {"availableInNewTerritories": True},
+                {
+                    "app": relationship("apps", self.app["id"]),
+                    "territoryAvailabilities": {"data": [
+                        {"type": "territoryAvailabilities", "id": temporary_ids[territory["id"]]}
+                        for territory in territories
+                    ]},
+                },
+            )
+            body["included"] = [{
+                "type": "territoryAvailabilities",
+                "id": temporary_ids[territory["id"]],
+                "attributes": {"available": True},
+                "relationships": {"territory": relationship("territories", territory["id"])},
+            } for territory in territories]
+            self.api.mutate("POST", "/v2/appAvailabilities", body)
+            return
+
+        availability_id = availability["id"]
+        if not availability.get("attributes", {}).get("availableInNewTerritories"):
+            self.api.mutate(
+                "PATCH", f"/v2/appAvailabilities/{availability_id}",
+                data("appAvailabilities", {"availableInNewTerritories": True}, ident=availability_id),
+            )
+        current = self.api.collection(f"/v2/appAvailabilities/{availability_id}/territoryAvailabilities?limit=200")
+        active_ids = {territory["id"] for territory in territories}
+        for territory in current:
+            territory_id = territory.get("relationships", {}).get("territory", {}).get("data", {}).get("id")
+            if territory_id in active_ids and not territory.get("attributes", {}).get("available"):
+                self.api.mutate(
+                    "PATCH", f"/v1/territoryAvailabilities/{territory['id']}",
+                    data("territoryAvailabilities", {"available": True}, ident=territory["id"]),
+                )
+
+    def subscription_availability(self, product: Dict[str, Any]) -> None:
+        """Offer the subscription's upfront plan in every active territory."""
+        territories = self.all_territories()
+        plans = self.api.collection(f"/v1/subscriptions/{product['id']}/planAvailabilities?limit=200")
+        plan = next((item for item in plans if item.get("attributes", {}).get("planType") == "UPFRONT"), None)
+        if not plan:
+            self.api.mutate(
+                "POST", "/v1/subscriptionPlanAvailabilities",
+                data(
+                    "subscriptionPlanAvailabilities",
+                    {"planType": "UPFRONT", "availableInNewTerritories": True},
+                    {
+                        "subscription": relationship("subscriptions", product["id"]),
+                        "availableTerritories": {"data": territories},
+                    },
+                ),
+            )
+            return
+
+        plan_id = plan["id"]
+        if not plan.get("attributes", {}).get("availableInNewTerritories"):
+            self.api.mutate(
+                "PATCH", f"/v1/subscriptionPlanAvailabilities/{plan_id}",
+                data("subscriptionPlanAvailabilities", {"availableInNewTerritories": True}, ident=plan_id),
+            )
+        current = self.api.collection(f"/v1/subscriptionPlanAvailabilities/{plan_id}/availableTerritories?limit=200")
+        if {item["id"] for item in current} != {item["id"] for item in territories}:
+            self.api.mutate(
+                "PATCH", f"/v1/subscriptionPlanAvailabilities/{plan_id}/relationships/availableTerritories",
+                {"data": territories},
+            )
+
+    def iap_availability(self, product: Dict[str, Any]) -> None:
+        """Offer the in-app purchase in every active territory."""
+        territories = self.all_territories()
+        resource = (self.api.request("GET", f"/v2/inAppPurchases/{product['id']}/inAppPurchaseAvailability") or {}).get("data")
+        if resource:
+            current = self.api.collection(f"/v1/inAppPurchaseAvailabilities/{resource['id']}/availableTerritories?limit=200")
+            if resource.get("attributes", {}).get("availableInNewTerritories") and {item["id"] for item in current} == {item["id"] for item in territories}:
+                return
+        self.api.mutate(
+            "POST", "/v1/inAppPurchaseAvailabilities",
+            data(
+                "inAppPurchaseAvailabilities",
+                {"availableInNewTerritories": True},
+                {
+                    "inAppPurchase": relationship("inAppPurchases", product["id"]),
+                    "availableTerritories": {"data": territories},
+                },
+            ),
+        )
+
     def subscription_price(self,product:Dict[str,Any],p:Dict[str,Any])->None:
+        self.subscription_availability(product)
         if "price" not in p:return
         existing=self.api.collection(f"/v1/subscriptions/{product['id']}/prices?filter[territory]=USA&filter[planType]=UPFRONT&limit=200")
         if existing:return
-        plans=self.api.collection(f"/v1/subscriptions/{product['id']}/planAvailabilities?limit=200")
-        if not any(x.get("attributes",{}).get("planType")=="UPFRONT" for x in plans): self.api.mutate("POST","/v1/subscriptionPlanAvailabilities",data("subscriptionPlanAvailabilities",{"planType":"UPFRONT","availableInNewTerritories":False},{"subscription":relationship("subscriptions",product["id"]),"availableTerritories":{"data":[{"type":"territories","id":"USA"}]}}))
         point=self.price_point(f"/v1/subscriptions/{product['id']}/pricePoints?filter[territory]=USA&filter[planType]=UPFRONT&limit=200",p["price"])
         self.api.mutate("POST","/v1/subscriptionPrices",data("subscriptionPrices",{"planType":"UPFRONT"},{"subscription":relationship("subscriptions",product["id"]),"subscriptionPricePoint":relationship("subscriptionPricePoints",point["id"])}))
     def iap_price(self,product:Dict[str,Any],p:Dict[str,Any])->None:
+        self.iap_availability(product)
         if "price" not in p:return
         if self.api.request("GET",f"/v2/inAppPurchases/{product['id']}/relationships/iapPriceSchedule") is not None:return
         point=self.price_point(f"/v2/inAppPurchases/{product['id']}/pricePoints?filter[territory]=USA&limit=200",p["price"]); temp="${price1}"
@@ -901,7 +1046,7 @@ class Deployer:
         self.wait_for_valid_build_and_attach(version, build_id, max(0, int(deadline - time.monotonic())))
 
     def run(self) -> None:
-        self.ensure_app(); self.ensure_age_ratings(); version=self.ensure_version(); existing_build=self.uploaded_build()
+        self.ensure_app(); self.app_price(); self.app_availability(); version=self.ensure_version(); existing_build=self.uploaded_build()
         if existing_build is None: self.prepare_ipa()
         self.ensure_primary_category(); self.ensure_review_details(version); locales=self.locales(); version_locales=self.upsert_localizations(version,locales); self.media(version_locales); self.ensure_products(locales); self.upload_build(version, existing_build); self.save()
         self.api.step("deployment API reconciliation complete")
