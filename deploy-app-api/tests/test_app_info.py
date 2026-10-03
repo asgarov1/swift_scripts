@@ -47,11 +47,18 @@ class AppInfoTests(unittest.TestCase):
             self.client.editable_app_info()
 
     def test_category_and_localizations_use_draft(self):
+        refreshed = [{"id": "new", "attributes": {"locale": "en-US"}}]
+        version_reads = 0
         def collection(path):
+            nonlocal version_reads
             if path == "/v1/apps/app/appInfos?limit=200":
                 return [info("live", "READY_FOR_SALE"), info("draft", "PREPARE_FOR_SUBMISSION")]
             self.assertIn(path, ["/v1/appInfos/draft/appInfoLocalizations?limit=200",
                                  "/v1/appStoreVersions/v21/appStoreVersionLocalizations?limit=200"])
+            if path == "/v1/appStoreVersions/v21/appStoreVersionLocalizations?limit=200":
+                version_reads += 1
+                if version_reads == 2:
+                    return refreshed
             return []
         self.client.api.collection.side_effect = collection
         self.client.api.request.return_value = {"data": {"id": "OTHER"}}
@@ -62,6 +69,33 @@ class AppInfoTests(unittest.TestCase):
         calls = self.client.api.mutate.call_args_list
         self.assertEqual(calls[1].args[2]["data"]["relationships"]["appInfo"]["data"]["id"], "draft")
         self.assertEqual(calls[2].args[2]["data"]["relationships"]["appStoreVersion"]["data"]["id"], "v21")
+
+    def test_bulgarian_is_reserved_for_product_localizations(self):
+        refreshed = [{"id": "en", "attributes": {"locale": "en-US"}}]
+        version_reads = 0
+
+        def collection(path):
+            nonlocal version_reads
+            if path.endswith("/appInfoLocalizations?limit=200"):
+                return []
+            if path.endswith("/appStoreVersionLocalizations?limit=200"):
+                version_reads += 1
+                return refreshed if version_reads == 2 else []
+            self.fail(f"unexpected collection path: {path}")
+
+        self.client.editable_app_info = Mock(return_value={"id": "draft"})
+        self.client.api.collection.side_effect = collection
+        self.client.api.mutate.return_value = {"data": {"id": "en"}}
+        locales = {
+            "en-US": {"appInformation": {"name": "Jlingo German A1"}},
+            "bg-BG": {"appInformation": {"name": "Jlingo German A1"}},
+        }
+
+        result = self.client.upsert_localizations({"id": "v21"}, locales)
+
+        self.assertEqual(set(result), {"en-US"})
+        posted_locales = [call.args[2]["data"]["attributes"]["locale"] for call in self.client.api.mutate.call_args_list]
+        self.assertEqual(posted_locales, ["en-US", "en-US"])
 
     def test_existing_version_supports_current_state_field(self):
         version = {"id": "v21", "attributes": {"platform": "IOS", "versionString": "1.0", "appVersionState": "PREPARE_FOR_SUBMISSION"}}
@@ -185,6 +219,17 @@ class ErrorTests(unittest.TestCase):
     def test_unrelated_validation_error_is_not_a_locked_field(self):
         body = json.dumps({"errors": [{"code": "ENTITY_ERROR.ATTRIBUTE.INVALID", "source": {"pointer": "/data/attributes/name"}}]})
         self.assertIsNone(deploy.APIRequestError("PATCH", "url", 409, body).unavailable_attribute())
+
+    def test_invalid_attribute_value_does_not_retry(self):
+        body = json.dumps({"errors": [{"code": "ENTITY_ERROR.ATTRIBUTE.INVALID",
+            "source": {"pointer": "/data/attributes/locale"}}]})
+        api = deploy.ASC(deploy.EXAMPLE, False)
+        error = urllib.error.HTTPError(deploy.API, 409, "Conflict", {}, io.BytesIO(body.encode()))
+        with patch.object(api, "token", return_value="test"), patch.object(deploy.urllib.request, "urlopen", side_effect=error) as request, patch.object(deploy.time, "sleep") as sleep:
+            with self.assertRaises(deploy.APIRequestError):
+                api.request("POST", "/v1/appInfoLocalizations", {})
+            request.assert_called_once()
+            sleep.assert_not_called()
 
     def test_legacy_state_error_is_still_recognized(self):
         body = json.dumps({"errors": [{"code": "STATE_ERROR", "detail": "Attribute 'name' cannot be edited at this time"}]})

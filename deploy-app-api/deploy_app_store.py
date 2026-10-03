@@ -37,7 +37,6 @@ PRODUCT_REVIEW_SCREENSHOT = Path(__file__).parent.parent / "Premium_with_three_o
 # from creating an unintended App Store localization.
 JLINGO_SCREENSHOT_LOCALES = (
     ("ar", "ar-SA"),
-    ("bg", "bg-BG"),
     ("en", "en-US"),
     ("fi", "fi"),
     ("fr", "fr-FR"),
@@ -52,6 +51,10 @@ JLINGO_SCREENSHOT_LOCALES = (
     ("es", "es-ES"),
     ("tr", "tr"),
 )
+# Bulgarian is accepted by the v2 product-localization APIs, but it is not an
+# App Store metadata language.  Keep it in localizations.json for products and
+# exclude it only from App Info, version metadata, and screenshots.
+PRODUCT_ONLY_LOCALES = frozenset({"bg-BG"})
 JLINGO_SCREENSHOT_DISPLAYS = (
     ("iphone", "APP_IPHONE_67"),
     ("ipad", "APP_IPAD_PRO_3GEN_129"),
@@ -133,6 +136,16 @@ class APIRequestError(DeployError):
             for error in errors
         )
 
+    def invalid_attribute_value(self) -> bool:
+        """Whether Apple rejected an attribute value as invalid."""
+        if self.status != 409:
+            return False
+        try:
+            errors = json.loads(self.response).get("errors", [])
+        except json.JSONDecodeError:
+            return False
+        return any(error.get("code") == "ENTITY_ERROR.ATTRIBUTE.INVALID" for error in errors)
+
     def duplicate_name_other_account(self) -> bool:
         """Whether an App Store name is already reserved by another account."""
         if self.status != 409:
@@ -175,6 +188,16 @@ class APIRequestError(DeployError):
         except json.JSONDecodeError:
             return False
         return any(error.get("code") == "STATE_ERROR.ALREADY_EXISTS" for error in errors)
+
+    def screenshot_too_many(self) -> bool:
+        """Whether Apple rejected an upload because its screenshot set is full."""
+        if self.status != 409:
+            return False
+        try:
+            errors = json.loads(self.response).get("errors", [])
+        except json.JSONDecodeError:
+            return False
+        return any(error.get("code") == "STATE_ERROR.SCREENSHOT_TOO_MANY" for error in errors)
 
 
 class ASC:
@@ -237,8 +260,10 @@ class ASC:
                 # Retrying cannot make a field editable.  Surface this precise
                 # response immediately so the per-field patcher can skip it.
                 state_error = APIRequestError(method, url, e.code, content)
-                if (state_error.unavailable_attribute() or state_error.duplicate_locale()
-                        or state_error.duplicate_name_other_account() or state_error.already_exists()):
+                if (state_error.unavailable_attribute() or state_error.invalid_attribute_value()
+                        or state_error.duplicate_locale()
+                        or state_error.duplicate_name_other_account() or state_error.already_exists()
+                        or state_error.screenshot_too_many()):
                     raise state_error
                 retry_after = e.headers.get("Retry-After")
                 if e.code not in RETRYABLE: break
@@ -491,9 +516,19 @@ class Deployer:
 
     def upsert_localizations(self, version: Dict[str,Any], locales: Dict[str,Any]) -> Dict[str,Dict[str,Any]]:
         self.api.step("synchronize app-info and version localizations")
+        metadata_locales = {
+            locale: source for locale, source in locales.items()
+            if locale not in PRODUCT_ONLY_LOCALES
+        }
+        skipped = sorted(set(locales) - set(metadata_locales))
+        if skipped:
+            logging.warning(
+                "Skipping product-only locale(s) for App Store metadata and screenshots: %s",
+                ", ".join(skipped),
+            )
         whats_new_by_locale: Dict[str,str] = {}
         if getattr(self, "version_is_update", False):
-            for locale, source in locales.items():
+            for locale, source in metadata_locales.items():
                 ai = source.get("appInformation", {})
                 av = source.get("appStoreVersion", {})
                 whats_new = av.get("whatsNew", ai.get("releaseNotes"))
@@ -507,7 +542,7 @@ class Deployer:
         old_info = self.api.collection(f"/v1/appInfos/{app_info['id']}/appInfoLocalizations?limit=200")
         old_ver = self.api.collection(f"/v1/appStoreVersions/{version['id']}/appStoreVersionLocalizations?limit=200")
         result = {}
-        for locale, source in locales.items():
+        for locale, source in metadata_locales.items():
             ai = source.get("appInformation", {})
             av = {**ai, **source.get("appStoreVersion", {})}
             info_attrs = {"locale":locale, **{k:ai[k] for k in ("name","subtitle","privacyPolicyUrl") if k in ai}}
@@ -552,7 +587,24 @@ class Deployer:
                     changed = {k:v for k,v in ver_attrs.items() if existing.get("attributes",{}).get(k) != v}
                     if changed: self.api.mutate_editable_fields(f"/v1/appStoreVersionLocalizations/{existing['id']}", "appStoreVersionLocalizations", existing["id"], changed, label=f"{locale} version localization")
                     result[locale] = existing
-        return result
+        # Re-read the collection after all creates.  Media must use Apple's
+        # authoritative localization IDs rather than a mixture of stale list
+        # entries and create responses; otherwise screenshots for two locales
+        # can be routed into the same ten-item screenshot set.
+        refreshed = self.api.collection(f"/v1/appStoreVersions/{version['id']}/appStoreVersionLocalizations?limit=200")
+        by_locale = {
+            item.get("attributes", {}).get("locale"): item
+            for item in refreshed
+            if item.get("attributes", {}).get("locale")
+        }
+        missing = sorted(set(metadata_locales) - set(by_locale))
+        if missing:
+            raise DeployError(f"Apple did not return version localizations after synchronization: {', '.join(missing)}")
+        selected = {locale: by_locale[locale] for locale in metadata_locales}
+        ids = [item.get("id") for item in selected.values()]
+        if any(not ident for ident in ids) or len(ids) != len(set(ids)):
+            raise DeployError("App Store version locales did not resolve to distinct localization IDs; refusing to upload media")
+        return selected
 
     def ensure_set(self, localization: Dict[str,Any], kind: str, display: str) -> Dict[str,Any]:
         route = "appScreenshotSets" if kind == "screenshot" else "appPreviewSets"
@@ -562,13 +614,27 @@ class Deployer:
         if found: return found
         return self.api.mutate("POST", f"/v1/{route}", data(route, {field:display}, {"appStoreVersionLocalization":relationship("appStoreVersionLocalizations",localization["id"])}))["data"]
 
-    def upload_asset(self, set_id: str, kind: str, file: Path) -> None:
+    def asset_names(self, set_id: str, kind: str) -> set[str]:
+        """Return filenames already reserved in an App Store media set."""
+        set_route = "appScreenshotSets" if kind == "screenshot" else "appPreviewSets"
+        asset_route = "appScreenshots" if kind == "screenshot" else "appPreviews"
+        existing = self.api.collection(f"/v1/{set_route}/{set_id}/{asset_route}?limit=200")
+        return {
+            name
+            for asset in existing
+            if (name := asset.get("attributes", {}).get("fileName"))
+        }
+
+    def upload_asset(self, set_id: str, kind: str, file: Path, *, existing_names: Optional[set[str]]=None) -> None:
         if not file.is_file(): raise DeployError(f"asset does not exist: {file}")
         route, typ, rel = ("appScreenshots","appScreenshots","appScreenshotSet") if kind=="screenshot" else ("appPreviews","appPreviews","appPreviewSet")
         key = f"{kind}:{set_id}:{sha256(file)}"
-        existing = self.api.collection(f"/v1/{'appScreenshotSets' if kind=='screenshot' else 'appPreviewSets'}/{set_id}/{route}?limit=200")
-        # Filename+size avoids duplicate asset reservations; Apple's checksum is not always returned.
-        if any(x.get("attributes",{}).get("fileName")==file.name and x.get("attributes",{}).get("fileSize")==file.stat().st_size for x in existing):
+        if existing_names is None:
+            existing_names = self.asset_names(set_id, kind)
+        # A filename identifies a screenshot slot for deployment purposes.  A
+        # previous deployment may contain different bytes under the same name;
+        # never reserve an eleventh asset merely because its size changed.
+        if file.name in existing_names:
             logging.info("Asset already exists: %s", file.name); return
         reservation_id = self.journal["assets"].get(key)
         asset = self.api.request("GET", f"/v1/{route}/{reservation_id}") if reservation_id else None
@@ -582,6 +648,7 @@ class Deployer:
                     fh.seek(op["offset"]); chunk=fh.read(op["length"])
                     self.api.request(op["method"],op["url"],raw=chunk,headers={h["name"]:h["value"] for h in op.get("requestHeaders",[])},allow=())
             self.api.mutate("PATCH",f"/v1/{route}/{reservation_id}",data(typ,{"uploaded":True,"sourceFileChecksum":checksum(file)},ident=reservation_id))
+        existing_names.add(file.name)
         logging.info("Uploaded %s %s", kind, file.name)
 
     def jlingo_screenshot_specs(self, localizations: Dict[str, Dict[str, Any]], configured: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
@@ -646,8 +713,24 @@ class Deployer:
                     paths=sorted(path for path in folder.rglob("*") if path.is_file() and not any(part.startswith(".") for part in path.relative_to(folder).parts))
                     media_source=str(folder)
                 if not paths: raise DeployError(f"{kind} media source contains no files: {media_source}")
+                if kind == "screenshot" and len(paths) > 10:
+                    raise DeployError(
+                        f"Screenshot set {locale}/{display} contains {len(paths)} files; "
+                        "App Store Connect permits at most 10"
+                    )
+                existing_names = self.asset_names(aset["id"], kind)
+                missing_paths = []
                 for path in paths:
-                    self.upload_asset(aset["id"],kind,path)
+                    if path.name in existing_names:
+                        logging.info("Asset already exists: %s", path.name)
+                    else:
+                        missing_paths.append(path)
+                logging.info(
+                    "Uploading %d missing %s(s) for locale %s, display %s, set %s",
+                    len(missing_paths), kind, locale, display, aset["id"],
+                )
+                for path in missing_paths:
+                    self.upload_asset(aset["id"],kind,path,existing_names=existing_names)
 
     def product_review_material(self, product: Dict[str,Any], kind: str) -> None:
         """Synchronize the fixed App Review note and paywall screenshot for a product."""
