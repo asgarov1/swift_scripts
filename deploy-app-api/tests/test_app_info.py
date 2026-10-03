@@ -84,7 +84,63 @@ class AppInfoTests(unittest.TestCase):
         self.client.api.collection.return_value = []
         self.client.api.mutate.return_value = {"data": {"id": "new"}}
         self.assertEqual(self.client.ensure_version(), {"id": "new"})
+        self.assertFalse(self.client.version_is_update)
         self.assertEqual(self.client.api.mutate.call_args.args[2]["data"]["attributes"]["versionString"], "1.0")
+
+    def test_existing_release_marks_new_version_as_update(self):
+        self.client.api.collection.return_value = [
+            {"id": "live", "attributes": {"platform": "IOS", "versionString": "1.0", "appVersionState": "READY_FOR_DISTRIBUTION"}}
+        ]
+        self.client.cfg["version"]["versionString"] = "2.0"
+        self.client.api.mutate.return_value = {"data": {"id": "new"}}
+
+        self.client.ensure_version()
+
+        self.assertTrue(self.client.version_is_update)
+
+    def test_update_localization_requires_whats_new(self):
+        self.client.version_is_update = True
+        self.client.editable_app_info = Mock(return_value={"id": "draft"})
+        self.client.api.collection.side_effect = [[], []]
+
+        with self.assertRaisesRegex(deploy.DeployError, "appStoreVersion.whatsNew is required"):
+            self.client.upsert_localizations(
+                {"id": "v2"},
+                {"en-US": {"appInformation": {"name": "Jlingo German A1"}}},
+            )
+
+    def test_update_localization_maps_legacy_release_notes_to_whats_new(self):
+        self.client.version_is_update = True
+        self.client.editable_app_info = Mock(return_value={"id": "draft"})
+        refreshed = [{"id": "en", "attributes": {"locale": "en-US"}}]
+        self.client.api.collection.side_effect = [[], [], refreshed]
+        self.client.api.mutate.return_value = {"data": {"id": "en"}}
+
+        self.client.upsert_localizations(
+            {"id": "v2"},
+            {"en-US": {"appInformation": {"name": "Jlingo German A1", "releaseNotes": "Improved reliability."}}},
+        )
+
+        version_create = self.client.api.mutate.call_args_list[1]
+        self.assertEqual(version_create.args[2]["data"]["attributes"]["whatsNew"], "Improved reliability.")
+
+    def test_first_release_omits_whats_new(self):
+        self.client.version_is_update = False
+        self.client.editable_app_info = Mock(return_value={"id": "draft"})
+        refreshed = [{"id": "en", "attributes": {"locale": "en-US"}}]
+        self.client.api.collection.side_effect = [[], [], refreshed]
+        self.client.api.mutate.return_value = {"data": {"id": "en"}}
+
+        self.client.upsert_localizations(
+            {"id": "v1"},
+            {"en-US": {
+                "appInformation": {"name": "Jlingo German A1"},
+                "appStoreVersion": {"whatsNew": "Should not be sent."},
+            }},
+        )
+
+        version_create = self.client.api.mutate.call_args_list[1]
+        self.assertNotIn("whatsNew", version_create.args[2]["data"]["attributes"])
 
     def test_no_editable_version_does_not_duplicate_existing_release(self):
         self.client.api.collection.return_value = [{"id": "live", "attributes": {"platform": "IOS", "versionString": "1.0", "appVersionState": "READY_FOR_DISTRIBUTION"}}]

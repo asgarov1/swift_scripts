@@ -300,6 +300,7 @@ class Deployer:
         self.journal_path = self.root / ".deploy-app-api-state.json"
         self.journal = json.loads(self.journal_path.read_text()) if self.journal_path.exists() else {"assets":{}}
         self.app: Dict[str,Any] = {}
+        self.version_is_update = False
 
     def save(self) -> None:
         if not self.api.dry_run:
@@ -408,6 +409,7 @@ class Deployer:
         attrs = {k:vc[k] for k in ("copyright","releaseType","usesIdfa","earliestReleaseDate") if k in vc}
         attrs.update(vc.get("attributes", {}))
         if v:
+            self.version_is_update = any(x.get("id") != v.get("id") for x in platform_versions)
             vc["versionString"] = v["attributes"]["versionString"]
             logging.info("Using latest editable App Store version %s (%s)", vc["versionString"], v["id"])
             short = self.cfg.get("build", {}).get("shortVersion")
@@ -417,6 +419,7 @@ class Deployer:
             return v
         if any(x.get("attributes", {}).get("versionString") == vc["versionString"] for x in platform_versions):
             raise DeployError(f"No editable App Store version exists and version {vc['versionString']} is already non-editable; set version.versionString to a new release number")
+        self.version_is_update = bool(platform_versions)
         attrs.update({"platform":vc.get("platform","IOS"), "versionString":vc["versionString"]})
         return self.api.mutate("POST", "/v1/appStoreVersions", data("appStoreVersions", attrs, {"app":relationship("apps",self.app["id"])}))["data"]
 
@@ -488,17 +491,31 @@ class Deployer:
 
     def upsert_localizations(self, version: Dict[str,Any], locales: Dict[str,Any]) -> Dict[str,Dict[str,Any]]:
         self.api.step("synchronize app-info and version localizations")
+        whats_new_by_locale: Dict[str,str] = {}
+        if getattr(self, "version_is_update", False):
+            for locale, source in locales.items():
+                ai = source.get("appInformation", {})
+                av = source.get("appStoreVersion", {})
+                whats_new = av.get("whatsNew", ai.get("releaseNotes"))
+                if not isinstance(whats_new, str) or not whats_new.strip():
+                    raise DeployError(
+                        f"{locale}: appStoreVersion.whatsNew is required for a version update "
+                        "(legacy appInformation.releaseNotes is also accepted)"
+                    )
+                whats_new_by_locale[locale] = whats_new
         app_info = self.editable_app_info()
         old_info = self.api.collection(f"/v1/appInfos/{app_info['id']}/appInfoLocalizations?limit=200")
         old_ver = self.api.collection(f"/v1/appStoreVersions/{version['id']}/appStoreVersionLocalizations?limit=200")
         result = {}
         for locale, source in locales.items():
             ai = source.get("appInformation", {})
-            av = source.get("appStoreVersion", source.get("appInformation", {}))
+            av = {**ai, **source.get("appStoreVersion", {})}
             info_attrs = {"locale":locale, **{k:ai[k] for k in ("name","subtitle","privacyPolicyUrl") if k in ai}}
             # Every app uses the published policy named after its bundle suffix.
             info_attrs["privacyPolicyUrl"] = privacy_policy_url(self.cfg["app"]["bundleId"])
-            ver_attrs = {"locale":locale, **{k:av[k] for k in ("description","keywords","marketingUrl","supportUrl","whatsNew") if k in av}}
+            ver_attrs = {"locale":locale, **{k:av[k] for k in ("description","keywords","marketingUrl","supportUrl") if k in av}}
+            if locale in whats_new_by_locale:
+                ver_attrs["whatsNew"] = whats_new_by_locale[locale]
             # Keep the store listing's message consistent across every app.
             # This deliberately overrides stale values in localizations.json.
             ver_attrs["promotionalText"] = promotional_text(locale)

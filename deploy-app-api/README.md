@@ -89,8 +89,11 @@ offline — ideal for learning wherever you are.” It applies the built-in loca
 translation for supported languages and falls back to that English text for any
 other locale, so `promotionalText` in `localizations.json` is intentionally
 ignored. The legacy-compatible `appInformation.description`, `keywords`,
-`supportUrl`, and related version fields are also accepted if `appStoreVersion`
-is absent.
+`supportUrl`, and related version fields are also accepted and are overridden
+individually by fields in `appStoreVersion`. For an app update, every App Store metadata locale must provide
+`appStoreVersion.whatsNew`; the legacy `appInformation.releaseNotes` key is also
+accepted. The deployer omits `whatsNew` for an app's first version, where Apple
+does not require it.
 
 Each configured subscription group is localized through its draft
 `subscriptionGroupVersion`. Add a locale-specific `subscriptionGroup` object
