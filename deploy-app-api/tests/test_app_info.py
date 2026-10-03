@@ -69,6 +69,36 @@ class AppInfoTests(unittest.TestCase):
         self.assertEqual(self.client.ensure_version(), version)
         self.client.api.mutate.assert_not_called()
 
+    def test_latest_editable_version_uses_numeric_order_and_platform(self):
+        def version(number, state="PREPARE_FOR_SUBMISSION", platform="IOS"):
+            return {"id": number + platform, "attributes": {"versionString": number, "appVersionState": state, "platform": platform}}
+        latest = version("3.10")
+        records = [version("3.9"), version("8.0", "READY_FOR_DISTRIBUTION"), latest, version("9.0", platform="MAC_OS")]
+        for ordered in (records, list(reversed(records))):
+            self.client.api.collection.return_value = ordered
+            self.assertEqual(self.client.ensure_version(), latest)
+            self.assertEqual(self.client.build_coordinates()[1], "3.10")
+        self.client.api.mutate.assert_not_called()
+
+    def test_no_editable_version_creates_configured_release(self):
+        self.client.api.collection.return_value = []
+        self.client.api.mutate.return_value = {"data": {"id": "new"}}
+        self.assertEqual(self.client.ensure_version(), {"id": "new"})
+        self.assertEqual(self.client.api.mutate.call_args.args[2]["data"]["attributes"]["versionString"], "1.0")
+
+    def test_no_editable_version_does_not_duplicate_existing_release(self):
+        self.client.api.collection.return_value = [{"id": "live", "attributes": {"platform": "IOS", "versionString": "1.0", "appVersionState": "READY_FOR_DISTRIBUTION"}}]
+        with self.assertRaises(deploy.DeployError):
+            self.client.ensure_version()
+        self.client.api.mutate.assert_not_called()
+
+    def test_explicit_build_version_must_match_selected_version(self):
+        self.client.cfg["build"]["shortVersion"] = "1.0"
+        self.client.api.collection.return_value = [{"id": "draft", "attributes": {"platform": "IOS", "versionString": "4.0", "appVersionState": "PREPARE_FOR_SUBMISSION"}}]
+        with self.assertRaises(deploy.DeployError):
+            self.client.ensure_version()
+        self.client.api.mutate_editable_fields.assert_not_called()
+
     def test_version_is_created_before_category(self):
         events = []
         names = ("ensure_app", "ensure_age_ratings", "app_price", "app_availability", "uploaded_build", "prepare_ipa",
@@ -78,6 +108,8 @@ class AppInfoTests(unittest.TestCase):
             setattr(self.client, name, Mock(side_effect=lambda *args, name=name: events.append(name)))
         self.client.run()
         self.assertLess(events.index("ensure_version"), events.index("ensure_primary_category"))
+        self.assertLess(events.index("ensure_version"), events.index("uploaded_build"))
+        self.assertLess(events.index("ensure_version"), events.index("prepare_ipa"))
 
 
 class ErrorTests(unittest.TestCase):

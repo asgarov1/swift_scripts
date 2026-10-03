@@ -384,15 +384,28 @@ class Deployer:
         self.api.step("find or create editable App Store version")
         vc = self.cfg["version"]
         versions = self.api.collection(f"/v1/apps/{self.app['id']}/appStoreVersions?limit=200")
-        v = next((x for x in versions if x.get("attributes",{}).get("platform") == vc.get("platform","IOS") and x.get("attributes",{}).get("versionString") == vc["versionString"]), None)
+        platform_versions = [x for x in versions if x.get("attributes", {}).get("platform") == vc.get("platform", "IOS")]
+        editable = [x for x in platform_versions if (x.get("attributes", {}).get("appVersionState") or x.get("attributes", {}).get("appStoreState")) in EDITABLE_STATES]
+        def version_key(resource: Dict[str,Any]) -> tuple[int, ...]:
+            value = resource["attributes"]["versionString"]
+            if not re.fullmatch(r"[0-9]+(?:\.[0-9]+)*", value):
+                raise DeployError(f"Cannot compare App Store version {value!r}")
+            parts = [int(part) for part in value.split(".")]
+            while len(parts) > 1 and parts[-1] == 0: parts.pop()
+            return tuple(parts)
+        v = max(editable, key=version_key) if editable else None
         attrs = {k:vc[k] for k in ("copyright","releaseType","usesIdfa","earliestReleaseDate") if k in vc}
         attrs.update(vc.get("attributes", {}))
         if v:
-            state = v.get("attributes", {}).get("appVersionState") or v.get("attributes", {}).get("appStoreState")
-            if state not in EDITABLE_STATES:
-                raise DeployError(f"Version {vc['versionString']} already exists in non-editable state {state}; choose a new versionString")
+            vc["versionString"] = v["attributes"]["versionString"]
+            logging.info("Using latest editable App Store version %s (%s)", vc["versionString"], v["id"])
+            short = self.cfg.get("build", {}).get("shortVersion")
+            if short is not None and str(short) != vc["versionString"]:
+                raise DeployError(f"build.shortVersion {short} does not match latest editable App Store version {vc['versionString']}; update the build configuration")
             if attrs: self.api.mutate_editable_fields(f"/v1/appStoreVersions/{v['id']}", "appStoreVersions", v["id"], attrs, label=f"version {vc['versionString']}")
             return v
+        if any(x.get("attributes", {}).get("versionString") == vc["versionString"] for x in platform_versions):
+            raise DeployError(f"No editable App Store version exists and version {vc['versionString']} is already non-editable; set version.versionString to a new release number")
         attrs.update({"platform":vc.get("platform","IOS"), "versionString":vc["versionString"]})
         return self.api.mutate("POST", "/v1/appStoreVersions", data("appStoreVersions", attrs, {"app":relationship("apps",self.app["id"])}))["data"]
 
@@ -873,9 +886,9 @@ class Deployer:
         self.wait_for_valid_build_and_attach(version, build_id, max(0, int(deadline - time.monotonic())))
 
     def run(self) -> None:
-        self.ensure_app(); self.ensure_age_ratings(); existing_build=self.uploaded_build()
+        self.ensure_app(); self.ensure_age_ratings(); version=self.ensure_version(); existing_build=self.uploaded_build()
         if existing_build is None: self.prepare_ipa()
-        version=self.ensure_version(); self.ensure_primary_category(); self.ensure_review_details(version); locales=self.locales(); version_locales=self.upsert_localizations(version,locales); self.media(version_locales); self.ensure_products(locales); self.upload_build(version, existing_build); self.save()
+        self.ensure_primary_category(); self.ensure_review_details(version); locales=self.locales(); version_locales=self.upsert_localizations(version,locales); self.media(version_locales); self.ensure_products(locales); self.upload_build(version, existing_build); self.save()
         self.api.step("deployment API reconciliation complete")
 
 
