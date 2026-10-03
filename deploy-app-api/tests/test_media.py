@@ -86,6 +86,55 @@ class MediaTests(unittest.TestCase):
         self.client.api.mutate.assert_not_called()
 
 
+    def _folder_with(self, count):
+        folder = self.client.root / "screenshots" / "iphone" / "en"
+        folder.mkdir(parents=True)
+        for number in range(count):
+            (folder / f"local-{number:02}.png").write_bytes(bytes([number]))
+        self.client.ensure_set = Mock(return_value={"id": "set-en"})
+        self.client.upload_asset = Mock(return_value=True)
+
+    def test_skips_upload_when_remote_set_already_has_ten_screenshots(self):
+        self._folder_with(10)
+        self.client.api.collection.return_value = [
+            {"attributes": {"fileName": f"remote-{n}.png"}} for n in range(10)
+        ]
+
+        self.client.media({"en-US": {"id": "localization-en"}})
+
+        self.client.upload_asset.assert_not_called()
+
+    def test_uploads_only_into_remaining_free_slots(self):
+        self._folder_with(5)
+        self.client.api.collection.return_value = [
+            {"attributes": {"fileName": f"remote-{n}.png"}} for n in range(8)
+        ]
+
+        self.client.media({"en-US": {"id": "localization-en"}})
+
+        self.assertEqual(
+            [call.args[2].name for call in self.client.upload_asset.call_args_list],
+            ["local-00.png", "local-01.png"],
+        )
+
+    def test_unnamed_remote_assets_count_toward_limit(self):
+        self._folder_with(3)
+        self.client.api.collection.return_value = [{"attributes": {}} for _ in range(10)]
+
+        self.client.media({"en-US": {"id": "localization-en"}})
+
+        self.client.upload_asset.assert_not_called()
+
+    def test_upload_asset_returns_false_when_apple_reports_full_set(self):
+        screenshot = self.client.root / "01.png"
+        screenshot.write_bytes(b"x")
+        self.client.journal = {"assets": {}}
+        self.client.api.dry_run = False
+        body = json.dumps({"errors": [{"code": "STATE_ERROR.SCREENSHOT_TOO_MANY"}]})
+        self.client.api.mutate.side_effect = deploy.APIRequestError("POST", "url", 409, body)
+
+        self.assertFalse(self.client.upload_asset("set-en", "screenshot", screenshot))
+
 class ScreenshotLimitErrorTests(unittest.TestCase):
     def test_screenshot_limit_conflict_is_recognized(self):
         body = json.dumps({"errors": [{"code": "STATE_ERROR.SCREENSHOT_TOO_MANY"}]})

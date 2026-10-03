@@ -70,7 +70,7 @@ class AppInfoTests(unittest.TestCase):
         self.assertEqual(calls[1].args[2]["data"]["relationships"]["appInfo"]["data"]["id"], "draft")
         self.assertEqual(calls[2].args[2]["data"]["relationships"]["appStoreVersion"]["data"]["id"], "v21")
 
-    def test_bulgarian_is_reserved_for_product_localizations(self):
+    def test_bulgarian_is_skipped_for_store_metadata(self):
         refreshed = [{"id": "en", "attributes": {"locale": "en-US"}}]
         version_reads = 0
 
@@ -96,6 +96,20 @@ class AppInfoTests(unittest.TestCase):
         self.assertEqual(set(result), {"en-US"})
         posted_locales = [call.args[2]["data"]["attributes"]["locale"] for call in self.client.api.mutate.call_args_list]
         self.assertEqual(posted_locales, ["en-US", "en-US"])
+
+    def test_bulgarian_is_skipped_for_subscription_groups_and_products(self):
+        self.client.cfg["purchases"] = {"subscriptionGroups": [{"referenceName": "Premium", "subscriptions": []}]}
+        self.client.api.collection.return_value = [{"id": "g1", "attributes": {"referenceName": "Premium"}}]
+        self.client.subscription_group_locales = Mock()
+        locales = {
+            "en-US": {"appInformation": {"name": "Jlingo German A1"}},
+            "bg-BG": {"appInformation": {"name": "Jlingo German A1"}},
+        }
+
+        self.client.ensure_products(locales)
+
+        passed = self.client.subscription_group_locales.call_args.args[1]
+        self.assertEqual(set(passed), {"en-US"})
 
     def test_existing_version_supports_current_state_field(self):
         version = {"id": "v21", "attributes": {"platform": "IOS", "versionString": "1.0", "appVersionState": "PREPARE_FOR_SUBMISSION"}}
@@ -191,7 +205,7 @@ class AppInfoTests(unittest.TestCase):
 
     def test_version_is_created_before_category(self):
         events = []
-        names = ("ensure_app", "ensure_age_ratings", "app_price", "app_availability", "uploaded_build", "prepare_ipa",
+        names = ("validate_text_limits", "ensure_app", "ensure_age_ratings", "app_price", "app_availability", "uploaded_build", "prepare_ipa",
                  "ensure_version", "ensure_primary_category", "ensure_review_details", "locales",
                  "upsert_localizations", "media", "ensure_products", "upload_build", "save")
         for name in names:

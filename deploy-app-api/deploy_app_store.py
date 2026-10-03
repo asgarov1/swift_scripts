@@ -2,7 +2,7 @@
 """Idempotent App Store Connect deployer using only the REST API and Python stdlib."""
 from __future__ import annotations
 
-import argparse, base64, hashlib, json, logging, os, plistlib, random, subprocess, sys, time
+import argparse, base64, copy, hashlib, json, logging, os, plistlib, random, subprocess, sys, time
 import re
 import urllib.error, urllib.parse, urllib.request
 from datetime import datetime, timezone
@@ -31,6 +31,9 @@ PRODUCT_REVIEW_NOTE = '''In order to see the "Unlock Premium":
 3. Scroll until 3rd word
 4. Click on any part with the "lock" icon'''
 PRODUCT_REVIEW_SCREENSHOT = Path(__file__).parent.parent / "Premium_with_three_options.jpg"
+# App Store Connect rejects an eleventh screenshot in a set (SCREENSHOT_TOO_MANY).
+MAX_SCREENSHOTS_PER_SET = 10
+
 # Jlingo's screenshot generator uses these directory names.  Keep this
 # ordered mapping as the shared client contract: it is intentionally not
 # inferred from arbitrary directories, which prevents a stray screenshot set
@@ -51,10 +54,46 @@ JLINGO_SCREENSHOT_LOCALES = (
     ("es", "es-ES"),
     ("tr", "tr"),
 )
-# Bulgarian is accepted by the v2 product-localization APIs, but it is not an
-# App Store metadata language.  Keep it in localizations.json for products and
-# exclude it only from App Info, version metadata, and screenshots.
-PRODUCT_ONLY_LOCALES = frozenset({"bg-BG"})
+# Bulgarian is not an App Store Connect language: Apple rejects it for App Info,
+# version metadata, screenshots, subscription groups, and product localizations
+# (neither "bg-BG" nor "bg" is accepted).  It stays in localizations.json for
+# the app itself but is never sent to App Store Connect.
+UNSUPPORTED_STORE_LOCALES = frozenset({"bg-BG", "bg"})
+
+
+def store_locales(locales: Dict[str,Any], purpose: str) -> Dict[str,Any]:
+    """Drop locales App Store Connect does not support, logging what was skipped."""
+    supported = {locale: source for locale, source in locales.items() if locale not in UNSUPPORTED_STORE_LOCALES}
+    skipped = sorted(set(locales) - set(supported))
+    if skipped:
+        logging.warning("Skipping locale(s) unsupported by App Store Connect for %s: %s", purpose, ", ".join(skipped))
+    return supported
+
+# App Store Connect character limits per resource attribute.  Text is never
+# truncated automatically: every over-long value in localizations.json is
+# reported before any API call so it can be rewritten by hand (see AGENTS.md).
+# Subscription description 55 is confirmed by Apple's API error; the product
+# display-name and in-app-purchase description limits are deliberately
+# conservative (Apple's documented values vary between 30/35 and 45/55).
+FIELD_LIMITS: Dict[str, Dict[str, int]] = {
+    "appInfoLocalizations": {"name": 30, "subtitle": 30},
+    "appStoreVersionLocalizations": {"description": 4000, "keywords": 100, "promotionalText": 170, "whatsNew": 4000},
+    "subscriptionGroupLocalizations": {"name": 75, "customAppName": 30},
+    "subscriptionLocalizations": {"name": 30, "description": 55},
+    "inAppPurchaseLocalizations": {"name": 30, "description": 45},
+}
+
+
+def limit_violations(typ: str, attrs: Dict[str, Any], label: str) -> List[str]:
+    """Describe every attribute in ``attrs`` that exceeds Apple's limit for ``typ``."""
+    return [
+        f"{label}.{field}: {len(value)} > {limit} characters: {value!r}"
+        for field, limit in FIELD_LIMITS.get(typ, {}).items()
+        for value in [attrs.get(field)]
+        if isinstance(value, str) and len(value) > limit
+    ]
+
+
 JLINGO_SCREENSHOT_DISPLAYS = (
     ("iphone", "APP_IPHONE_67"),
     ("ipad", "APP_IPAD_PRO_3GEN_129"),
@@ -145,6 +184,21 @@ class APIRequestError(DeployError):
         except json.JSONDecodeError:
             return False
         return any(error.get("code") == "ENTITY_ERROR.ATTRIBUTE.INVALID" for error in errors)
+
+    def too_long_attribute(self) -> Optional[tuple[str, int]]:
+        """Return (attribute, max length) when Apple rejects a value as too long."""
+        if self.status != 409:
+            return None
+        try:
+            errors = json.loads(self.response).get("errors", [])
+        except json.JSONDecodeError:
+            return None
+        for error in errors:
+            match = re.search(r"too long\. Max number of characters is (\d+)", error.get("detail", ""))
+            pointer = re.fullmatch(r"/data/attributes/([^/]+)", error.get("source", {}).get("pointer", ""))
+            if match and pointer:
+                return pointer.group(1), int(match.group(1))
+        return None
 
     def duplicate_name_other_account(self) -> bool:
         """Whether an App Store name is already reserved by another account."""
@@ -284,7 +338,18 @@ class ASC:
     def mutate(self, method: str, path: str, body: Dict[str,Any]) -> Dict[str,Any]:
         if self.dry_run:
             logging.info("DRY RUN %s %s", method, path); return {"data":{"id":"dry-run", "type":body.get("data",{}).get("type","")}}
-        return self.request(method, path, body, allow=()) or {}
+        try:
+            return self.request(method, path, body, allow=()) or {}
+        except APIRequestError as error:
+            too_long = error.too_long_attribute()
+            if not too_long: raise
+            field, limit = too_long
+            attrs = body.get("data", {}).get("attributes", {})
+            raise DeployError(
+                f"App Store Connect rejected {body.get('data', {}).get('type')} {attrs.get('locale', '')} {field!r}: "
+                f"max {limit} characters, got {len(str(attrs.get(field, '')))}: {attrs.get(field)!r}. "
+                "Rewrite it in localizations.json (do not truncate) and update FIELD_LIMITS."
+            ) from error
 
     def mutate_editable_fields(self, path: str, typ: str, ident: str, changed: Dict[str,Any], *, label: str) -> None:
         """Patch independently so a locked optional field does not block other metadata."""
@@ -516,16 +581,7 @@ class Deployer:
 
     def upsert_localizations(self, version: Dict[str,Any], locales: Dict[str,Any]) -> Dict[str,Dict[str,Any]]:
         self.api.step("synchronize app-info and version localizations")
-        metadata_locales = {
-            locale: source for locale, source in locales.items()
-            if locale not in PRODUCT_ONLY_LOCALES
-        }
-        skipped = sorted(set(locales) - set(metadata_locales))
-        if skipped:
-            logging.warning(
-                "Skipping product-only locale(s) for App Store metadata and screenshots: %s",
-                ", ".join(skipped),
-            )
+        metadata_locales = store_locales(locales, "App Store metadata and screenshots")
         whats_new_by_locale: Dict[str,str] = {}
         if getattr(self, "version_is_update", False):
             for locale, source in metadata_locales.items():
@@ -614,18 +670,35 @@ class Deployer:
         if found: return found
         return self.api.mutate("POST", f"/v1/{route}", data(route, {field:display}, {"appStoreVersionLocalization":relationship("appStoreVersionLocalizations",localization["id"])}))["data"]
 
-    def asset_names(self, set_id: str, kind: str) -> set[str]:
-        """Return filenames already reserved in an App Store media set."""
+    def remote_assets(self, set_id: str, kind: str) -> List[Dict[str, Any]]:
+        """Return every asset currently in an App Store media set."""
         set_route = "appScreenshotSets" if kind == "screenshot" else "appPreviewSets"
         asset_route = "appScreenshots" if kind == "screenshot" else "appPreviews"
-        existing = self.api.collection(f"/v1/{set_route}/{set_id}/{asset_route}?limit=200")
+        return self.api.collection(f"/v1/{set_route}/{set_id}/{asset_route}?limit=200")
+
+    def asset_names(self, set_id: str, kind: str) -> set[str]:
+        """Return filenames already reserved in an App Store media set."""
         return {
             name
-            for asset in existing
+            for asset in self.remote_assets(set_id, kind)
             if (name := asset.get("attributes", {}).get("fileName"))
         }
 
-    def upload_asset(self, set_id: str, kind: str, file: Path, *, existing_names: Optional[set[str]]=None) -> None:
+    def upload_asset(self, set_id: str, kind: str, file: Path, *, existing_names: Optional[set[str]]=None) -> bool:
+        """Upload one asset; return False when Apple reports the set is full."""
+        try:
+            self._upload_asset(set_id, kind, file, existing_names=existing_names)
+        except APIRequestError as error:
+            if not error.screenshot_too_many():
+                raise
+            logging.warning(
+                "Screenshot set %s already holds the maximum of %d screenshots; not uploading %s",
+                set_id, MAX_SCREENSHOTS_PER_SET, file.name,
+            )
+            return False
+        return True
+
+    def _upload_asset(self, set_id: str, kind: str, file: Path, *, existing_names: Optional[set[str]]=None) -> None:
         if not file.is_file(): raise DeployError(f"asset does not exist: {file}")
         route, typ, rel = ("appScreenshots","appScreenshots","appScreenshotSet") if kind=="screenshot" else ("appPreviews","appPreviews","appPreviewSet")
         key = f"{kind}:{set_id}:{sha256(file)}"
@@ -713,24 +786,46 @@ class Deployer:
                     paths=sorted(path for path in folder.rglob("*") if path.is_file() and not any(part.startswith(".") for part in path.relative_to(folder).parts))
                     media_source=str(folder)
                 if not paths: raise DeployError(f"{kind} media source contains no files: {media_source}")
-                if kind == "screenshot" and len(paths) > 10:
+                if kind == "screenshot" and len(paths) > MAX_SCREENSHOTS_PER_SET:
                     raise DeployError(
                         f"Screenshot set {locale}/{display} contains {len(paths)} files; "
                         "App Store Connect permits at most 10"
                     )
-                existing_names = self.asset_names(aset["id"], kind)
+                remote = self.remote_assets(aset["id"], kind)
+                existing_names = {
+                    name for asset in remote
+                    if (name := asset.get("attributes", {}).get("fileName"))
+                }
                 missing_paths = []
                 for path in paths:
                     if path.name in existing_names:
                         logging.info("Asset already exists: %s", path.name)
                     else:
                         missing_paths.append(path)
+                if kind == "screenshot" and missing_paths:
+                    # Apple caps a screenshot set at ten assets regardless of
+                    # their names.  Never delete remote media; skip instead.
+                    free_slots = max(0, MAX_SCREENSHOTS_PER_SET - len(remote))
+                    if free_slots == 0:
+                        logging.info(
+                            "Screenshot set %s/%s already has %d screenshot(s) (maximum %d); skipping %d local file(s)",
+                            locale, display, len(remote), MAX_SCREENSHOTS_PER_SET, len(missing_paths),
+                        )
+                        continue
+                    if len(missing_paths) > free_slots:
+                        logging.warning(
+                            "Screenshot set %s/%s has room for only %d more screenshot(s); skipping %s",
+                            locale, display, free_slots,
+                            ", ".join(path.name for path in missing_paths[free_slots:]),
+                        )
+                        missing_paths = missing_paths[:free_slots]
                 logging.info(
                     "Uploading %d missing %s(s) for locale %s, display %s, set %s",
                     len(missing_paths), kind, locale, display, aset["id"],
                 )
                 for path in missing_paths:
-                    self.upload_asset(aset["id"],kind,path,existing_names=existing_names)
+                    if self.upload_asset(aset["id"],kind,path,existing_names=existing_names) is False:
+                        break
 
     def product_review_material(self, product: Dict[str,Any], kind: str) -> None:
         """Synchronize the fixed App Review note and paywall screenshot for a product."""
@@ -787,6 +882,7 @@ class Deployer:
     def ensure_products(self, locales: Dict[str,Any]) -> None:
         purchases = self.cfg.get("purchases", {})
         self.api.step("create/reuse subscriptions, in-app purchases, prices, and localizations")
+        locales = store_locales(locales, "subscription groups and products")
         groups=self.api.collection(f"/v1/apps/{self.app['id']}/subscriptionGroups?limit=200")
         # Product IDs are app-wide.  Search every existing group before a POST,
         # because a product may have been created by an earlier deployment with
@@ -797,8 +893,14 @@ class Deployer:
             for subscription in self.api.collection(f"/v1/subscriptionGroups/{existing_group['id']}/subscriptions?limit=200")
         ]
         for g in purchases.get("subscriptionGroups",[]):
-            group=next((x for x in groups if x.get("attributes",{}).get("referenceName")==g["referenceName"]),None)
-            if not group:
+            # Reuse an existing group with the same reference name (ignoring
+            # case and surrounding whitespace) and only add its missing
+            # localizations; create the group only when none exists.
+            wanted=g["referenceName"].strip().casefold()
+            group=next((x for x in groups if (x.get("attributes",{}).get("referenceName") or "").strip().casefold()==wanted),None)
+            if group:
+                logging.info("Reusing existing subscription group %r (%s)", group.get("attributes",{}).get("referenceName"), group["id"])
+            else:
                 group=self.api.mutate("POST","/v1/subscriptionGroups",data("subscriptionGroups",{"referenceName":g["referenceName"]},{"app":relationship("apps",self.app["id"])}))["data"]
                 groups.append(group)
             self.subscription_group_locales(group, locales)
@@ -851,13 +953,13 @@ class Deployer:
             if not isinstance(text, dict):
                 raise DeployError(f"{locale}: subscriptionGroup must be an object")
             name = text.get("displayName")
-            if not isinstance(name, str) or not name.strip() or len(name) > 75:
-                raise DeployError(f"{locale}: subscriptionGroup.displayName must be 1–75 characters")
+            if not isinstance(name, str) or not name.strip():
+                raise DeployError(f"{locale}: subscriptionGroup.displayName must be a non-empty string")
             attrs = {"locale": locale, "name": name}
             if "customAppName" in text:
                 custom_name = text["customAppName"]
-                if custom_name is not None and (not isinstance(custom_name, str) or not custom_name.strip() or len(custom_name) > 30):
-                    raise DeployError(f"{locale}: subscriptionGroup.customAppName must be 1–30 characters or null")
+                if custom_name is not None and (not isinstance(custom_name, str) or not custom_name.strip()):
+                    raise DeployError(f"{locale}: subscriptionGroup.customAppName must be a non-empty string or null")
                 attrs["customAppName"] = custom_name
             requested.append((attrs, explicit))
 
@@ -1130,7 +1232,7 @@ class Deployer:
                 for operation in attrs.get("uploadOperations",[]):
                     source.seek(operation["offset"]); part=source.read(operation["length"])
                     self.api.request(operation["method"],operation["url"],raw=part,headers={x["name"]:x["value"] for x in operation.get("requestHeaders",[])},allow=())
-            checksums={"file":{"hash":sha256(ipa),"algorithm":"SHA_256"},"composite":{"hash":checksum(ipa),"algorithm":"MD5"}}
+            checksums={"file":{"hash":checksum(ipa),"algorithm":"MD5"}}
             self.api.mutate("PATCH",f"/v1/buildUploadFiles/{item['id']}",data("buildUploadFiles",{"uploaded":True,"sourceFileChecksums":checksums},ident=item["id"]))
         self.api.step("wait for build upload processing")
         deadline=time.monotonic()+int(build.get("processingTimeoutSeconds",1800))
@@ -1145,22 +1247,115 @@ class Deployer:
         if not build_id: raise DeployError("Timed out waiting for Apple to create the Build resource; rerun safely later")
         self.wait_for_valid_build_and_attach(version, build_id, max(0, int(deadline - time.monotonic())))
 
+    def validate_text_limits(self, locales: Dict[str,Any]) -> None:
+        """Fail before any remote change if any localized text exceeds Apple's limits."""
+        iap_ids = {p.get("productId") for p in self.cfg.get("purchases", {}).get("inAppPurchases", [])}
+        problems: List[str] = []
+        for locale, source in store_locales(locales, "text-limit validation").items():
+            ai = source.get("appInformation", {})
+            av = {**ai, **source.get("appStoreVersion", {})}
+            problems += limit_violations("appInfoLocalizations", ai, f"{locale} appInformation")
+            problems += limit_violations("appStoreVersionLocalizations", {**av, "promotionalText": promotional_text(locale)}, f"{locale} appStoreVersion")
+            group = source.get("subscriptionGroup")
+            if isinstance(group, dict):
+                problems += limit_violations("subscriptionGroupLocalizations", {"name": group.get("displayName"), "customAppName": group.get("customAppName")}, f"{locale} subscriptionGroup")
+            for section in ("subscriptions", "inAppPurchases"):
+                for pid, text in (source.get(section) or {}).items():
+                    if not isinstance(text, dict): continue
+                    typ = "inAppPurchaseLocalizations" if pid in iap_ids else "subscriptionLocalizations"
+                    attrs = {"name": text.get("displayName", text.get("name")), "description": text.get("description")}
+                    problems += limit_violations(typ, attrs, f"{locale} {section}.{pid}")
+        if problems:
+            raise DeployError("Localized text exceeds App Store Connect limits; rewrite these in localizations.json "
+                              "(shorter wording with the same meaning, never truncation):\n  " + "\n  ".join(problems))
+
     def run(self) -> None:
+        self.validate_text_limits(self.locales())
         self.ensure_app(); self.app_price(); self.app_availability(); version=self.ensure_version(); existing_build=self.uploaded_build()
         if existing_build is None: self.prepare_ipa()
         self.ensure_primary_category(); self.ensure_review_details(version); locales=self.locales(); version_locales=self.upsert_localizations(version,locales); self.media(version_locales); self.ensure_products(locales); self.upload_build(version, existing_build); self.save()
         self.api.step("deployment API reconciliation complete")
 
 
-EXAMPLE={"apiKey":{"keyId":"ABC123DEFG","issuerId":"00000000-0000-0000-0000-000000000000","privateKeyPath":"/secure/path/AuthKey_ABC123DEFG.p8"},"app":{"bundleId":"com.example.app","sku":"example-app","primaryLocale":"en-US"},"version":{"platform":"IOS","versionString":"1.0","releaseType":"MANUAL","usesIdfa":False,"copyright":"2026 Example"},"build":{"ipaPath":"build/Example.ipa","bundleVersion":"1","processingTimeoutSeconds":1800},"localizationsPath":"localizations.json","media":{"screenshots":[{"locale":"en-US","displayType":"APP_IPHONE_67"}],"previews":[]},"purchases":{"subscriptionGroups":[],"inAppPurchases":[]}}
+# Shared settings live in the sibling deployment.json; everything that differs
+# per app lives in <root>/deployment.json and is merged over it (see merge_config).
+SHARED_EXAMPLE={"apiKey":{"keyId":"ABC123DEFG","issuerId":"00000000-0000-0000-0000-000000000000","privateKeyPath":"/secure/path/AuthKey_ABC123DEFG.p8"},"app":{"primaryLocale":"en-US"},"version":{"platform":"IOS","releaseType":"MANUAL","usesIdfa":False,"copyright":"2026 Example"},"build":{"processingTimeoutSeconds":1800},"localizationsPath":"localizations.json","media":{"screenshots":[{"locale":"en-US","displayType":"APP_IPHONE_67"}],"previews":[]},"purchases":{"subscriptionGroups":[],"inAppPurchases":[]}}
+PROJECT_EXAMPLE={"app":{"bundleId":"com.example.app","sku":"example-app"},"version":{"versionString":"1.0"},"build":{"ipaPath":"build/Example.ipa","bundleVersion":"1"}}
+PROJECT_CONFIG_NAME = "deployment.json"
+# List entries (subscription groups, subscriptions, in-app purchases) are matched
+# between the shared and project files by the first of these keys both carry.
+MERGE_IDENTITY_KEYS = ("referenceName", "name")
+REQUIRED_CONFIG = (("apiKey","keyId"), ("apiKey","issuerId"), ("apiKey","privateKeyPath"), ("app","bundleId"), ("app","sku"), ("app","primaryLocale"), ("version","versionString"), ("build","bundleVersion"))
+
+
+def merge_config(base: Any, override: Any) -> Any:
+    """Deep-merge a project configuration over the shared one.
+
+    Objects merge recursively.  Lists of objects merge entry-by-entry using the
+    first ``MERGE_IDENTITY_KEYS`` key present on every entry (project-only
+    entries are appended); any other list or value in the project file replaces
+    the shared one.
+    """
+    if isinstance(base, dict) and isinstance(override, dict):
+        merged = copy.deepcopy(base)
+        for key, value in override.items():
+            merged[key] = merge_config(base[key], value) if key in base else copy.deepcopy(value)
+        return merged
+    if isinstance(base, list) and isinstance(override, list) and base and override and all(isinstance(x, dict) for x in base + override):
+        key = next((k for k in MERGE_IDENTITY_KEYS if all(k in x for x in base + override)), None)
+        if key:
+            wanted = {x[key]: x for x in override}
+            merged = [merge_config(x, wanted.pop(x[key])) if x[key] in wanted else copy.deepcopy(x) for x in base]
+            return merged + [copy.deepcopy(x) for x in override if x[key] in wanted]
+    return copy.deepcopy(override)
+
+
+def validate_config(cfg: Dict[str, Any], sources: str) -> None:
+    """Stop early with every missing required value instead of a late KeyError."""
+    missing = []
+    for path in REQUIRED_CONFIG:
+        node: Any = cfg
+        for part in path:
+            node = node.get(part) if isinstance(node, dict) else None
+        if node in (None, ""): missing.append(".".join(path))
+    purchases = cfg.get("purchases", {})
+    products = [p for g in purchases.get("subscriptionGroups", []) for p in g.get("subscriptions", [])] + purchases.get("inAppPurchases", [])
+    missing += [f"productId for purchase {p.get('name', '?')!r}" for p in products if not p.get("productId")]
+    if missing:
+        raise DeployError(f"Configuration ({sources}) is missing: " + ", ".join(missing))
+
+
+def load_config(shared_path: Path, project_path: Path) -> Dict[str, Any]:
+    """Merge the shared deployment.json with the app's own project deployment.json."""
+    if not project_path.is_file():
+        raise DeployError(f"Project deployment configuration not found: {project_path} (create it with --write-project-example)")
+    cfg = merge_config(json.loads(shared_path.read_text()), json.loads(project_path.read_text()))
+    validate_config(cfg, f"{shared_path} + {project_path}")
+    return cfg
+
+
+EXAMPLE = merge_config(SHARED_EXAMPLE, PROJECT_EXAMPLE)
 def main()->None:
     default_config = Path(__file__).resolve().with_name("deployment.json")
-    p=argparse.ArgumentParser(description=__doc__); p.add_argument("root", nargs="?", help="required app-assets root directory"); p.add_argument("--config", default=str(default_config), help=f"configuration file (default: {default_config})"); p.add_argument("--dry-run",action="store_true"); p.add_argument("--build-only",action="store_true",help="create the configured IPA without contacting App Store Connect"); p.add_argument("--write-example",metavar="PATH"); args=p.parse_args()
-    if args.write_example: Path(args.write_example).write_text(json.dumps(EXAMPLE,indent=2)+"\n"); return
+    p=argparse.ArgumentParser(description=__doc__)
+    p.add_argument("root", nargs="?", help="required app-assets root directory")
+    p.add_argument("--config", default=str(default_config), help=f"shared configuration file (default: {default_config})")
+    p.add_argument("--project-config", metavar="PATH", help=f"per-app configuration merged over --config (default: <root>/{PROJECT_CONFIG_NAME})")
+    p.add_argument("--dry-run",action="store_true")
+    p.add_argument("--build-only",action="store_true",help="create the configured IPA without contacting App Store Connect")
+    p.add_argument("--write-example",metavar="PATH",help="write an example shared configuration")
+    p.add_argument("--write-project-example",metavar="PATH",help="write an example per-app configuration")
+    args=p.parse_args()
+    if args.write_example or args.write_project_example:
+        if args.write_example: Path(args.write_example).write_text(json.dumps(SHARED_EXAMPLE,indent=2)+"\n")
+        if args.write_project_example: Path(args.write_project_example).write_text(json.dumps(PROJECT_EXAMPLE,indent=2)+"\n")
+        return
     if not args.root:p.error("root is required")
     logging.basicConfig(level=logging.INFO,format="%(asctime)s %(levelname)s %(message)s")
     try:
-        deployer=Deployer(json.loads(Path(args.config).read_text()),Path(args.root),args.dry_run)
+        root = Path(args.root).expanduser()
+        project_config = Path(args.project_config).expanduser() if args.project_config else root / PROJECT_CONFIG_NAME
+        deployer=Deployer(load_config(Path(args.config), project_config),root,args.dry_run)
         deployer.prepare_ipa() if args.build_only else deployer.run()
     except (DeployError,KeyError,ValueError,json.JSONDecodeError) as e: logging.error("Deployment stopped: %s",e); sys.exit(1)
 if __name__=="__main__": main()

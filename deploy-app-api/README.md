@@ -4,21 +4,35 @@
 
 ```sh
 cd /Users/asgarov1/Projects/swift/scripts/deploy-app-api
-./deploy_app_store.py --write-example deployment.json
-# edit deployment.json and add localizations.json beneath its root
+./deploy_app_store.py --write-example deployment.json                          # shared settings
+./deploy_app_store.py --write-project-example /absolute/path/to/app-assets/deployment.json  # per-app settings
 ./deploy_app_store.py /absolute/path/to/app-assets
 ```
 
-It uses `/Users/asgarov1/Projects/swift/scripts/deploy-app-api/deployment.json` by default. Pass `--config /other/path.json` only when intentionally using a different configuration. It uses an App Store Connect team API key (`keyId`, `issuerId`, and the local `.p8` file). The only local executable dependency is macOS `openssl`, used solely to create the ES256 JWT required by Apple.
+It merges the shared `/Users/asgarov1/Projects/swift/scripts/deploy-app-api/deployment.json` with the app's own `<root>/deployment.json` (see Configuration). Pass `--config` / `--project-config` only when intentionally using different files. It uses an App Store Connect team API key (`keyId`, `issuerId`, and the local `.p8` file). The only local executable dependency is macOS `openssl`, used solely to create the ES256 JWT required by Apple.
 
 ## Configuration
 
-The generated `deployment.json` is a complete starting shape. Required fields are:
+Configuration is split in two files that are deep-merged at startup:
 
-- `app.bundleId`, `app.sku`, `app.primaryLocale`
-- `version.versionString`
-- `build.ipaPath` and `build.bundleVersion`
-- `localizationsPath`
+- **Shared** — `deploy-app-api/deployment.json` (or `--config`): everything identical across apps: API key, `app.primaryLocale`, version `platform`/`releaseType`/`usesIdfa`/`copyright`, build settings (`createIpa`, `configuration`, `exportPath`, `exportOptions`, `allowProvisioningUpdates`, `processingTimeoutSeconds`), `localizationsPath`, `media`, and the purchase catalogue (names, periods, types, prices).
+- **Per project** — `<root>/deployment.json` (or `--project-config`): what differs per app: `app.bundleId`, `app.sku`, `version.versionString`, `build.ipaPath`/`bundleVersion`/`projectPath`/`scheme`/`archivePath`, and each purchase's `productId`.
+
+```json
+{
+  "app": { "bundleId": "com.example.app", "sku": "example-app" },
+  "version": { "versionString": "1.0" },
+  "build": { "ipaPath": "build/Example.ipa", "bundleVersion": "1", "projectPath": "Example.xcodeproj", "scheme": "Example", "archivePath": "build/Example.xcarchive" },
+  "purchases": {
+    "subscriptionGroups": [{ "referenceName": "Premium", "subscriptions": [{ "name": "Monthly Subscription", "productId": "com.example.app.premium.monthly" }] }],
+    "inAppPurchases": [{ "name": "Lifetime Access", "productId": "com.example.app.premium.lifetime" }]
+  }
+}
+```
+
+Objects merge recursively and project values win. Subscription groups, subscriptions, and in-app purchases are matched by `referenceName`/`name`, so the project file only adds `productId` to the shared entries (a project entry with a new name is appended). Any other key in the project file — including one normally kept shared — overrides the shared value for that app. `--write-example PATH` and `--write-project-example PATH` write starting shapes for each file.
+
+Required after merging (checked before any API call): `apiKey.*`, `app.bundleId`, `app.sku`, `app.primaryLocale`, `version.versionString`, `build.bundleVersion`, and a `productId` for every purchase.
 
 The required positional `root` argument is the app-assets directory. `build.ipaPath`, `localizationsPath`, and media file paths are relative to that directory unless absolute. Before it archives, the deployer searches App Store Connect for the configured short version, build number, and platform. If that build has already been uploaded, it skips Xcode entirely and waits for that build to validate before attaching it to the App Store version; an IPA is not required on that path. Otherwise, set `build.createIpa` to `true` and provide `projectPath` plus `scheme` to have the deployer archive and export the signed IPA. `archivePath`, `exportPath`, `configuration`, `exportOptions`, and `allowProvisioningUpdates` are optional; the latter explicitly permits Xcode to obtain automatic-signing assets from Apple. If `createIpa` is false, provide an already-exported IPA at `build.ipaPath`.
 
@@ -36,7 +50,7 @@ Every deployment also reconciles the App Review information for its App Store ve
 
 The `media` section has arrays of `{ locale, displayType }`; `folder` is optional. The deployer recursively uploads every non-hidden file in each folder, in stable path order. Use `files` with a non-empty list of explicit paths when a display type has a specific asset, such as an individual preview video; it takes precedence over `folder`. Without either, it expects screenshots in `screenshots/<locale>/<displayType>` and previews in `previews/<locale>/<displayType>` beneath `root`. Paths are resolved from `root` unless absolute. Screenshot display types use values such as `APP_IPHONE_67`; preview types use the corresponding values without the `APP_` prefix, such as `IPHONE_67`.
 
-Jlingo clients additionally use a fixed screenshot layout: `screenshots/iphone/<language>` and `screenshots/ipad/<language>`. The deployer automatically uploads those folders as `APP_IPHONE_67` and `APP_IPAD_PRO_3GEN_129`, respectively, but only when the corresponding App Store locale is present in `localizations.json`. The fixed folder-to-store-locale mapping is `ar→ar-SA`, `en→en-US`, `fi→fi`, `fr→fr-FR`, `de→de-DE`, `it→it`, `ja→ja`, `zh-Hans→zh-Hans`, `pl→pl`, `pt→pt-PT`, `ru→ru`, `sh→hr`, `es→es-ES`, and `tr→tr`. Bulgarian is not an App Store metadata language, so `bg-BG` is retained only for v2 product localizations and its screenshots are not uploaded. This is the shared localization set for Jlingo clients; do not add arbitrary screenshot-directory locales. Explicit screenshot media entries remain supported and take precedence for the same locale/display type.
+Jlingo clients additionally use a fixed screenshot layout: `screenshots/iphone/<language>` and `screenshots/ipad/<language>`. The deployer automatically uploads those folders as `APP_IPHONE_67` and `APP_IPAD_PRO_3GEN_129`, respectively, but only when the corresponding App Store locale is present in `localizations.json`. The fixed folder-to-store-locale mapping is `ar→ar-SA`, `en→en-US`, `fi→fi`, `fr→fr-FR`, `de→de-DE`, `it→it`, `ja→ja`, `zh-Hans→zh-Hans`, `pl→pl`, `pt→pt-PT`, `ru→ru`, `sh→hr`, `es→es-ES`, and `tr→tr`. Bulgarian is not an App Store Connect language, so `bg-BG` is skipped for all App Store Connect localizations (metadata, screenshots, subscription groups, and products). This is the shared localization set for Jlingo clients; do not add arbitrary screenshot-directory locales. Explicit screenshot media entries remain supported and take precedence for the same locale/display type.
 
 `purchases.subscriptionGroups[].subscriptions[]` accepts `name`, `productId`, `subscriptionPeriod`, optional `familySharable`, and an optional USA base `price`. `purchases.inAppPurchases[]` accepts `name`, `productId`, `inAppPurchaseType`, optional `familySharable`, and an optional USA base `price`. All subscriptions and in-app purchases are made available in every active App Store territory, including territories Apple adds later.
 
@@ -103,6 +117,8 @@ is absent, the deployer creates a missing group localization from that locale's
 covered without duplicating the app name.
 
 ## Reruns and checkpoints
+
+Localized text is validated against App Store Connect's character limits for every store locale before any remote change: app name/subtitle 30, keywords 100, promotional text 170, description/what's new 4000, subscription-group name 75 and custom app name 30, subscription display name 30 and description 55, in-app purchase display name 30 and description 45 (product name and IAP description limits are conservative). Text is never truncated: the deployer lists every over-long value and stops, and the fix is to rewrite that text in `localizations.json`. If Apple still rejects a value as too long, the deployment stops with the field, locale and Apple's maximum; rewrite the text and update `FIELD_LIMITS`.
 
 Every meaningful action begins with `STEP nn` in the log. `.deploy-app-api-state.json` stores only remote upload IDs and asset hashes with mode `0600`; it contains no credentials. Reruns find resources by stable keys, patch only values that differ, skip media whose remote name/size match, and resume expired/interrupted reservations safely. If App Store Connect reports an existing in-flight subscription or in-app-purchase version, the deployer reuses that version and continues synchronizing any missing product localizations instead of retrying its creation. Requests retry transient network failures, Apple rate limits, and server failures with exponential backoff.
 
