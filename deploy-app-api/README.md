@@ -44,6 +44,11 @@ shared [`Premium_with_three_options.jpg`](/Users/asgarov1/Projects/swift/scripts
 
 ## `localizations.json`
 
+For Jlingo language apps, every locale must use the same canonical
+`appInformation.name`: `Jlingo ${language} ${level}` (for example,
+`Jlingo German A1`). The language portion remains in English; only the other
+store metadata is translated.
+
 ```json
 {
   "en-US": {

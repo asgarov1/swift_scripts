@@ -137,6 +137,20 @@ class APIRequestError(DeployError):
             for error in errors
         )
 
+    def duplicate_name_other_account(self) -> bool:
+        """Whether an App Store name is already reserved by another account."""
+        if self.status != 409:
+            return False
+        try:
+            errors = json.loads(self.response).get("errors", [])
+        except json.JSONDecodeError:
+            return False
+        return any(
+            error.get("code") == "ENTITY_ERROR.ATTRIBUTE.INVALID.DUPLICATE.DIFFERENT_ACCOUNT"
+            and error.get("source", {}).get("pointer") == "/data/attributes/name"
+            for error in errors
+        )
+
     def existing_resource_id(self) -> Optional[str]:
         """Return the resource ID Apple names in an ALREADY_EXISTS response."""
         if self.status != 409:
@@ -227,7 +241,8 @@ class ASC:
                 # Retrying cannot make a field editable.  Surface this precise
                 # response immediately so the per-field patcher can skip it.
                 state_error = APIRequestError(method, url, e.code, content)
-                if state_error.unavailable_attribute() or state_error.duplicate_locale() or state_error.already_exists():
+                if (state_error.unavailable_attribute() or state_error.duplicate_locale()
+                        or state_error.duplicate_name_other_account() or state_error.already_exists()):
                     raise state_error
                 retry_after = e.headers.get("Retry-After")
                 if e.code not in RETRYABLE: break

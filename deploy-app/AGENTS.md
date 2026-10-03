@@ -124,6 +124,12 @@ localized value fit the applicable App Store Connect limit. Do not truncate
 mid-word: rewrite concisely and then count the final translated value. These
 limits apply independently to every locale:
 
+For every Jlingo language app, set `appInformation.name` to the same canonical
+name in every locale: `Jlingo ${language} ${level}` (for example,
+`Jlingo German A1`). Keep the language name in English; do not translate this
+field. Localize the subtitle, description, keywords, promotional text, and
+release notes normally.
+
 | JSON / environment field | App Store Connect limit |
 | --- | --- |
 | `appInformation.name` / app name | 2–30 characters |

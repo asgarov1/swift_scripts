@@ -6,6 +6,7 @@
 
 - Invoke it with a required deployment-root argument: `./deploy_app_store.py /path/to/app-assets`. It uses its sibling `deployment.json` by default; `--config /other/path.json` is an explicit override. The root is never read from or overridden by JSON.
 - `localizations.json` is authoritative for per-locale App Info and App Store version text, plus each product's `subscriptions` mapping. Existing remote values are patched only when their requested value differs.
+- For every Jlingo language app, use the same canonical App Store name in every locale: `Jlingo ${language} ${level}` (for example, `Jlingo German A1`). Keep the language name in English and do not translate `appInformation.name` per locale.
 - It reuses the existing App Store Connect app record and creates/reuses its draft version, metadata localizations, screenshot/preview sets, subscription groups, subscriptions, non-subscription IAPs, product versions, localizations, pricing, and build association. Apple’s current public Apps API does not create an app record, so that one-time portal action is an explicit prerequisite.
 - Assets are content-addressed locally (SHA-256) and compared to remote name/size/checksum fields where Apple exposes them. The state journal makes retries resume incomplete upload reservations. Never delete existing remote media automatically.
 - All API traffic has bounded exponential retry for connection failures, 429, and 5xx. Every durable operation logs a numbered `STEP n` line. It is safe to rerun after interruption.
