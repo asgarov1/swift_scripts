@@ -5,26 +5,26 @@
     "privateKeyPath": "//Users/asgarov1/Documents/keys/appstore/CodexCli_AuthKey_327MHGVU62.p8"
   },
   "app": {
-    "bundleId": "com.asgarovsoftware.jlingo.german.a1",
-    "sku": "Jlingo German A1",
+    "bundleId": "com.asgarovsoftware.jlingo.german.a2",
+    "sku": "Jlingo German A2",
     "primaryLocale": "en-US"
   },
   "version": {
     "platform": "IOS",
-    "versionString": "2.1",
+    "versionString": "2.0",
     "releaseType": "MANUAL",
     "usesIdfa": false,
     "copyright": "2026 Asgarov"
   },
   "build": {
-    "ipaPath": "build/german_a1.ipa",
-    "bundleVersion": "1",
+    "ipaPath": "build/german_a2.ipa",
+    "bundleVersion": "2",
     "processingTimeoutSeconds": 1800,
     "createIpa": true,
-    "projectPath": "german_a1.xcodeproj",
-    "scheme": "german_a1",
+    "projectPath": "german_a2.xcodeproj",
+    "scheme": "german_a2",
     "configuration": "Release",
-    "archivePath": "build/german_a1.xcarchive",
+    "archivePath": "build/german_a2.xcarchive",
     "exportPath": "build",
     "allowProvisioningUpdates": true,
     "exportOptions": {
@@ -42,18 +42,18 @@
   "purchases": {
     "subscriptionGroups": [
       {
-        "referenceName": "Premium Access",
+        "referenceName": "Premium",
         "subscriptions": [
           {
             "name": "Monthly Subscription",
-            "productId": "com.german_a1.premium.monthly",
+            "productId": "com.german_a2.premium.monthly",
             "subscriptionPeriod": "ONE_MONTH",
             "familySharable": false,
             "price": 6.99
           },
           {
             "name": "Quarterly (3 months) Subscription",
-            "productId": "com.asgarovsoftware.german_a1.premium.3months",
+            "productId": "com.asgarovsoftware.german_a2.premium.3months",
             "subscriptionPeriod": "THREE_MONTHS",
             "familySharable": false,
             "price": 14.99
@@ -64,10 +64,10 @@
     "inAppPurchases": [
       {
         "name": "Lifetime Access",
-        "productId": "com.asgarovsoftware.german_a1.premium.lifetime",
+        "productId": "com.asgarovsoftware.german_a2.premium.lifetime",
         "inAppPurchaseType": "NON_CONSUMABLE",
         "familySharable": false,
-        "price": 44.99
+        "price": 19.99
       }
     ]
   }
