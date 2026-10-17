@@ -604,12 +604,12 @@ class Deployer:
             info_attrs = {"locale":locale, **{k:ai[k] for k in ("name","subtitle","privacyPolicyUrl") if k in ai}}
             # Every app uses the published policy named after its bundle suffix.
             info_attrs["privacyPolicyUrl"] = privacy_policy_url(self.cfg["app"]["bundleId"])
-            ver_attrs = {"locale":locale, **{k:av[k] for k in ("description","keywords","marketingUrl","supportUrl") if k in av}}
+            ver_attrs = {"locale":locale, **{k:av[k] for k in ("description","keywords","marketingUrl","supportUrl","promotionalText") if k in av}}
             if locale in whats_new_by_locale:
                 ver_attrs["whatsNew"] = whats_new_by_locale[locale]
-            # Keep the store listing's message consistent across every app.
-            # This deliberately overrides stale values in localizations.json.
-            ver_attrs["promotionalText"] = promotional_text(locale)
+            # Preserve app-specific promotional copy when supplied, while
+            # retaining the translated shared default for older configs.
+            ver_attrs.setdefault("promotionalText", promotional_text(locale))
             # Keep the App Store support link consistent across every locale.
             ver_attrs["supportUrl"] = "https://asgarovsoftware.com/#contact"
             if not info_attrs.get("name"): raise DeployError(f"{locale}: appInformation.name is required")
@@ -1255,7 +1255,11 @@ class Deployer:
             ai = source.get("appInformation", {})
             av = {**ai, **source.get("appStoreVersion", {})}
             problems += limit_violations("appInfoLocalizations", ai, f"{locale} appInformation")
-            problems += limit_violations("appStoreVersionLocalizations", {**av, "promotionalText": promotional_text(locale)}, f"{locale} appStoreVersion")
+            problems += limit_violations(
+                "appStoreVersionLocalizations",
+                {**av, "promotionalText": av.get("promotionalText", promotional_text(locale))},
+                f"{locale} appStoreVersion",
+            )
             group = source.get("subscriptionGroup")
             if isinstance(group, dict):
                 problems += limit_violations("subscriptionGroupLocalizations", {"name": group.get("displayName"), "customAppName": group.get("customAppName")}, f"{locale} subscriptionGroup")

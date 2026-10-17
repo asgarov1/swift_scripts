@@ -98,11 +98,11 @@ store metadata is translated.
 }
 ```
 
-The deployer always sets Promotional Text to “No account, no registration, fully
-offline — ideal for learning wherever you are.” It applies the built-in locale
-translation for supported languages and falls back to that English text for any
-other locale, so `promotionalText` in `localizations.json` is intentionally
-ignored. The legacy-compatible `appInformation.description`, `keywords`,
+Set locale-specific Promotional Text with `appStoreVersion.promotionalText`.
+When that field is omitted, the deployer applies its built-in locale translation
+of “No account, no registration, fully offline — ideal for learning wherever you
+are,” falling back to English for unsupported locales. The legacy-compatible
+`appInformation.description`, `keywords`,
 `supportUrl`, and related version fields are also accepted and are overridden
 individually by fields in `appStoreVersion`. For an app update, every App Store metadata locale must provide
 `appStoreVersion.whatsNew`; the legacy `appInformation.releaseNotes` key is also
