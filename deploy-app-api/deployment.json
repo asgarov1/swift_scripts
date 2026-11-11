@@ -47,16 +47,14 @@
             "subscriptionPeriod": "THREE_MONTHS",
             "familySharable": false,
             "price": 14.99
+          },
+          {
+            "name": "Semiannual (6 months) Subscription",
+            "subscriptionPeriod": "SIX_MONTHS",
+            "familySharable": false,
+            "price": 24.99
           }
         ]
-      }
-    ],
-    "inAppPurchases": [
-      {
-        "name": "Lifetime Access",
-        "inAppPurchaseType": "NON_CONSUMABLE",
-        "familySharable": false,
-        "price": 19.99
       }
     ]
   }

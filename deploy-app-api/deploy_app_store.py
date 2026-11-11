@@ -417,10 +417,13 @@ class Deployer:
         export_path.mkdir(parents=True, exist_ok=True)
         options_path = export_path / "ExportOptions.plist"; options_path.write_bytes(plistlib.dumps(options, fmt=plistlib.FMT_XML, sort_keys=True))
         archive_command = ["xcodebuild", "archive", "-project", str(project), "-scheme", build["scheme"], "-configuration", build.get("configuration", "Release"), "-destination", "generic/platform=iOS", "-archivePath", str(archive)]
-        if build.get("allowProvisioningUpdates"): archive_command.append("-allowProvisioningUpdates")
+        export_command = ["xcodebuild", "-exportArchive", "-archivePath", str(archive), "-exportPath", str(export_path), "-exportOptionsPlist", str(options_path)]
+        if build.get("allowProvisioningUpdates"):
+            archive_command.append("-allowProvisioningUpdates")
+            export_command.append("-allowProvisioningUpdates")
         try:
             subprocess.run(archive_command, check=True)
-            subprocess.run(["xcodebuild", "-exportArchive", "-archivePath", str(archive), "-exportPath", str(export_path), "-exportOptionsPlist", str(options_path)], check=True)
+            subprocess.run(export_command, check=True)
         except FileNotFoundError: raise DeployError("xcodebuild is required to create build.ipaPath")
         except subprocess.CalledProcessError as e: raise DeployError(f"Xcode could not create the signed IPA (exit {e.returncode})")
         if not ipa.is_file():
@@ -792,40 +795,44 @@ class Deployer:
                         "App Store Connect permits at most 10"
                     )
                 remote = self.remote_assets(aset["id"], kind)
-                existing_names = {
-                    name for asset in remote
-                    if (name := asset.get("attributes", {}).get("fileName"))
-                }
-                missing_paths = []
-                for path in paths:
-                    if path.name in existing_names:
-                        logging.info("Asset already exists: %s", path.name)
-                    else:
-                        missing_paths.append(path)
-                if kind == "screenshot" and missing_paths:
-                    # Apple caps a screenshot set at ten assets regardless of
-                    # their names.  Never delete remote media; skip instead.
-                    free_slots = max(0, MAX_SCREENSHOTS_PER_SET - len(remote))
-                    if free_slots == 0:
-                        logging.info(
-                            "Screenshot set %s/%s already has %d screenshot(s) (maximum %d); skipping %d local file(s)",
-                            locale, display, len(remote), MAX_SCREENSHOTS_PER_SET, len(missing_paths),
-                        )
-                        continue
-                    if len(missing_paths) > free_slots:
-                        logging.warning(
-                            "Screenshot set %s/%s has room for only %d more screenshot(s); skipping %s",
-                            locale, display, free_slots,
-                            ", ".join(path.name for path in missing_paths[free_slots:]),
-                        )
-                        missing_paths = missing_paths[:free_slots]
+                # A set is up to date only when it holds exactly the local
+                # files, in the same order, with the same bytes (Apple stores
+                # the MD5 we send as sourceFileChecksum).  Anything else -- a
+                # changed, missing, extra, reordered or unfinished asset --
+                # replaces the whole set with the local files.
+                wanted = [(path.name, checksum(path)) for path in paths]
+                current = [
+                    (asset.get("attributes", {}).get("fileName"), asset.get("attributes", {}).get("sourceFileChecksum"))
+                    for asset in remote
+                ]
+                if current == wanted:
+                    logging.info("%s set %s/%s already matches %s; nothing to upload", kind.capitalize(), locale, display, media_source)
+                    continue
+                if remote:
+                    logging.info(
+                        "%s set %s/%s differs from %s; deleting its %d remote %s(s) and uploading %d local file(s)",
+                        kind.capitalize(), locale, display, media_source, len(remote), kind, len(paths),
+                    )
+                    self.delete_assets(remote, kind)
                 logging.info(
-                    "Uploading %d missing %s(s) for locale %s, display %s, set %s",
-                    len(missing_paths), kind, locale, display, aset["id"],
+                    "Uploading %d %s(s) for locale %s, display %s, set %s",
+                    len(paths), kind, locale, display, aset["id"],
                 )
-                for path in missing_paths:
+                existing_names: set[str] = set()
+                for path in paths:
                     if self.upload_asset(aset["id"],kind,path,existing_names=existing_names) is False:
                         break
+
+    def delete_assets(self, assets: List[Dict[str, Any]], kind: str) -> None:
+        """Delete every given screenshot or preview from its App Store media set."""
+        route = "appScreenshots" if kind == "screenshot" else "appPreviews"
+        for asset in assets:
+            name = asset.get("attributes", {}).get("fileName") or asset["id"]
+            if self.api.dry_run:
+                logging.info("DRY RUN DELETE /v1/%s/%s (%s)", route, asset["id"], name)
+                continue
+            self.api.request("DELETE", f"/v1/{route}/{asset['id']}")
+            logging.info("Deleted %s %s", kind, name)
 
     def product_review_material(self, product: Dict[str,Any], kind: str) -> None:
         """Synchronize the fixed App Review note and paywall screenshot for a product."""
@@ -1176,10 +1183,21 @@ class Deployer:
     def subscription_price(self,product:Dict[str,Any],p:Dict[str,Any])->None:
         self.subscription_availability(product)
         if "price" not in p:return
-        existing=self.api.collection(f"/v1/subscriptions/{product['id']}/prices?filter[territory]=USA&filter[planType]=UPFRONT&limit=200")
-        if existing:return
+        # Unlike the App Store Connect website, the API does not fill in other
+        # territories from the USA base price.  A subscription priced only in
+        # the USA stays in MISSING_METADATA, so set Apple's equalized price for
+        # every territory that has none yet; existing prices are never changed.
+        existing=self.api.collection(f"/v1/subscriptions/{product['id']}/prices?include=territory&limit=200")
+        priced={((x.get("relationships",{}).get("territory") or {}).get("data") or {}).get("id") for x in existing}
+        territories={t["id"] for t in self.all_territories()}
+        if territories <= priced: return
         point=self.price_point(f"/v1/subscriptions/{product['id']}/pricePoints?filter[territory]=USA&filter[planType]=UPFRONT&limit=200",p["price"])
-        self.api.mutate("POST","/v1/subscriptionPrices",data("subscriptionPrices",{"planType":"UPFRONT"},{"subscription":relationship("subscriptions",product["id"]),"subscriptionPricePoint":relationship("subscriptionPricePoints",point["id"])}))
+        points=[point]+self.api.collection(f"/v1/subscriptionPricePoints/{point['id']}/equalizations?include=territory&limit=200")
+        pid=product.get("attributes",{}).get("productId",product["id"])
+        missing=[x for x in points if ((x.get("relationships",{}).get("territory") or {}).get("data") or {}).get("id") in territories - priced]
+        logging.info("Setting %d missing territory price(s) for %s", len(missing), pid)
+        for x in missing:
+            self.api.mutate("POST","/v1/subscriptionPrices",data("subscriptionPrices",{"planType":"UPFRONT"},{"subscription":relationship("subscriptions",product["id"]),"subscriptionPricePoint":relationship("subscriptionPricePoints",x["id"])}))
     def iap_price(self,product:Dict[str,Any],p:Dict[str,Any])->None:
         self.iap_availability(product)
         if "price" not in p:return

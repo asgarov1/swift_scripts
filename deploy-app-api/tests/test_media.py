@@ -56,24 +56,6 @@ class MediaTests(unittest.TestCase):
             self.client.media({"en-US": {"id": "localization-en"}})
         self.client.upload_asset.assert_not_called()
 
-    def test_only_uploads_screenshot_names_missing_from_remote_set(self):
-        folder = self.client.root / "screenshots" / "iphone" / "en"
-        folder.mkdir(parents=True)
-        (folder / "01-main-page.png").write_bytes(b"new main page")
-        missing = folder / "02-verbs-original.png"
-        missing.write_bytes(b"verbs")
-        self.client.ensure_set = Mock(return_value={"id": "set-en"})
-        self.client.api.collection.return_value = [{
-            "attributes": {"fileName": "01-main-page.png", "fileSize": 1}
-        }]
-        self.client.upload_asset = Mock()
-
-        self.client.media({"en-US": {"id": "localization-en"}})
-
-        self.client.upload_asset.assert_called_once_with(
-            "set-en", "screenshot", missing, existing_names={"01-main-page.png"}
-        )
-
     def test_upload_asset_treats_filename_as_existing_when_size_changed(self):
         screenshot = self.client.root / "01-main-page.png"
         screenshot.write_bytes(b"replacement with a different size")
@@ -94,36 +76,58 @@ class MediaTests(unittest.TestCase):
         self.client.ensure_set = Mock(return_value={"id": "set-en"})
         self.client.upload_asset = Mock(return_value=True)
 
-    def test_skips_upload_when_remote_set_already_has_ten_screenshots(self):
-        self._folder_with(10)
-        self.client.api.collection.return_value = [
-            {"attributes": {"fileName": f"remote-{n}.png"}} for n in range(10)
+    def _remote(self, folder):
+        return [
+            {"id": f"remote-{path.name}", "attributes": {"fileName": path.name, "sourceFileChecksum": deploy.checksum(path)}}
+            for path in sorted(folder.iterdir())
         ]
+
+    def test_matching_set_is_left_unchanged(self):
+        self._folder_with(3)
+        folder = self.client.root / "screenshots" / "iphone" / "en"
+        self.client.api.collection.return_value = self._remote(folder)
+        self.client.delete_assets = Mock()
 
         self.client.media({"en-US": {"id": "localization-en"}})
 
+        self.client.delete_assets.assert_not_called()
         self.client.upload_asset.assert_not_called()
 
-    def test_uploads_only_into_remaining_free_slots(self):
-        self._folder_with(5)
-        self.client.api.collection.return_value = [
-            {"attributes": {"fileName": f"remote-{n}.png"}} for n in range(8)
-        ]
+    def test_changed_set_is_deleted_and_fully_reuploaded(self):
+        self._folder_with(3)
+        folder = self.client.root / "screenshots" / "iphone" / "en"
+        remote = self._remote(folder)
+        remote[1]["attributes"]["sourceFileChecksum"] = "stale"
+        remote.append({"id": "remote-extra", "attributes": {"fileName": "extra.png"}})
+        self.client.api.collection.return_value = remote
+        self.client.delete_assets = Mock()
 
         self.client.media({"en-US": {"id": "localization-en"}})
 
+        self.client.delete_assets.assert_called_once_with(remote, "screenshot")
         self.assertEqual(
             [call.args[2].name for call in self.client.upload_asset.call_args_list],
-            ["local-00.png", "local-01.png"],
+            ["local-00.png", "local-01.png", "local-02.png"],
         )
 
-    def test_unnamed_remote_assets_count_toward_limit(self):
-        self._folder_with(3)
-        self.client.api.collection.return_value = [{"attributes": {}} for _ in range(10)]
+    def test_reordered_set_is_replaced(self):
+        self._folder_with(2)
+        folder = self.client.root / "screenshots" / "iphone" / "en"
+        self.client.api.collection.return_value = list(reversed(self._remote(folder)))
+        self.client.delete_assets = Mock()
 
         self.client.media({"en-US": {"id": "localization-en"}})
 
-        self.client.upload_asset.assert_not_called()
+        self.client.delete_assets.assert_called_once()
+        self.assertEqual(self.client.upload_asset.call_count, 2)
+
+    def test_delete_assets_deletes_each_remote_asset(self):
+        self.client.api.dry_run = False
+        self.client.delete_assets([{"id": "a", "attributes": {}}, {"id": "b", "attributes": {}}], "preview")
+        self.assertEqual(
+            [call.args for call in self.client.api.request.call_args_list],
+            [("DELETE", "/v1/appPreviews/a"), ("DELETE", "/v1/appPreviews/b")],
+        )
 
     def test_upload_asset_returns_false_when_apple_reports_full_set(self):
         screenshot = self.client.root / "01.png"
