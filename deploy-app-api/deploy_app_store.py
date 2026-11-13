@@ -253,6 +253,16 @@ class APIRequestError(DeployError):
             return False
         return any(error.get("code") == "STATE_ERROR.SCREENSHOT_TOO_MANY" for error in errors)
 
+    def subscription_creation_not_allowed(self) -> bool:
+        """Whether Apple refuses to create subscriptions for this app/account."""
+        if self.status != 409:
+            return False
+        try:
+            errors = json.loads(self.response).get("errors", [])
+        except json.JSONDecodeError:
+            return False
+        return any(error.get("code") == "ENTITY_ERROR.SUBSCRIPTION_CREATION_NOT_ALLOWED" for error in errors)
+
 
 class ASC:
     def __init__(self, cfg: Dict[str, Any], dry_run: bool):
@@ -317,7 +327,8 @@ class ASC:
                 if (state_error.unavailable_attribute() or state_error.invalid_attribute_value()
                         or state_error.duplicate_locale()
                         or state_error.duplicate_name_other_account() or state_error.already_exists()
-                        or state_error.screenshot_too_many()):
+                        or state_error.screenshot_too_many()
+                        or state_error.subscription_creation_not_allowed()):
                     raise state_error
                 retry_after = e.headers.get("Retry-After")
                 if e.code not in RETRYABLE: break
@@ -919,6 +930,13 @@ class Deployer:
                     try:
                         product=self.api.mutate("POST","/v1/subscriptions",data("subscriptions",attrs,{"group":relationship("subscriptionGroups",group["id"])}))["data"]
                     except APIRequestError as error:
+                        if error.subscription_creation_not_allowed():
+                            raise DeployError(
+                                f"Apple refused to create subscription {p['productId']} in group {group['id']} "
+                                "(ENTITY_ERROR.SUBSCRIPTION_CREATION_NOT_ALLOWED). Retrying does not help: try adding it "
+                                "in App Store Connect (Subscriptions > the group > +); if that fails too, check Business > "
+                                "Agreements and contact Apple Developer Support, then rerun"
+                            ) from error
                         if not error.already_exists(): raise
                         # A previous run (or another deployer) created it.  Do
                         # not retry the POST: refresh and continue its setup.
