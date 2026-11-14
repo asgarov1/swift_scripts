@@ -991,13 +991,16 @@ class Deployer:
             resource = (self.api.request("GET", path, allow=()) or {})["data"]
             attrs = resource.get("attributes", {})
             state = attrs.get("state")
-            if state in ready:
+            # Apple can expose a ready state before the matched specification
+            # arrives. A missing specId is pending metadata, not incompatibility.
+            if state in ready and attrs.get("specId"):
                 return resource
-            if state not in {"AWAITING_UPLOAD", "UPLOAD_COMPLETE"}:
+            if state not in ready | {"AWAITING_UPLOAD", "UPLOAD_COMPLETE"}:
                 raise DeployError(f"Creative processing failed for {file}: {state}: {attrs.get('stateDetails')}")
             if time.monotonic() >= deadline:
-                raise DeployError(f"Timed out processing {file}; rerun to resume")
-            logging.info("Waiting for creative %s: %s", file.name, state)
+                raise DeployError(f"Timed out processing {file} (state={state}, specId={attrs.get('specId')}); "
+                                  "existing placements retained; rerun to resume")
+            logging.info("Waiting for creative %s: %s (specId=%s)", file.name, state, attrs.get("specId"))
             time.sleep(10)
 
     def creative_assets(self, plan: List[Dict[str,Any]], localizations: Dict[str,Any]) -> None:
