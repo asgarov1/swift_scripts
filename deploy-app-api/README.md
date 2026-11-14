@@ -71,9 +71,19 @@ On every run, each screenshot and preview set is compared with its local files b
 
 Jlingo clients additionally use a fixed screenshot layout: `screenshots/iphone/<language>` and `screenshots/ipad/<language>`. The deployer automatically uploads those folders as `APP_IPHONE_67` and `APP_IPAD_PRO_3GEN_129`, respectively, but only when the corresponding App Store locale is present in `localizations.json`. The fixed folder-to-store-locale mapping is `ar→ar-SA`, `en→en-US`, `fi→fi`, `fr→fr-FR`, `de→de-DE`, `it→it`, `ja→ja`, `zh-Hans→zh-Hans`, `pl→pl`, `pt→pt-PT`, `ru→ru`, `sh→hr`, `es→es-ES`, and `tr→tr`. Bulgarian is not an App Store Connect language, so `bg-BG` is skipped for all App Store Connect localizations (metadata, screenshots, subscription groups, and products). This is the shared localization set for Jlingo clients; do not add arbitrary screenshot-directory locales. Explicit screenshot media entries remain supported and take precedence for the same locale/display type.
 
-`purchases.subscriptionGroups[].subscriptions[]` accepts `name`, `productId`, `subscriptionPeriod`, optional `familySharable`, and an optional USA base `price`. `purchases.inAppPurchases[]` accepts `name`, `productId`, `inAppPurchaseType`, optional `familySharable`, and an optional USA base `price`. All subscriptions and in-app purchases are made available in every active App Store territory, including territories Apple adds later.
+`purchases.subscriptionGroups[].subscriptions[]` accepts `name`, `productId`, `subscriptionPeriod`, optional `familySharable`, and an optional base `price`. `purchases.inAppPurchases[]` accepts `name`, `productId`, `inAppPurchaseType`, optional `familySharable`, and an optional base `price`. All subscriptions and in-app purchases are made available in every active App Store territory, including territories Apple adds later.
 
-The app itself defaults to a free USD base price (`app.price: 0`) and is made available in every active App Store territory, including future territories. Set `app.price` to a non-negative USD amount to choose a different initial base price; an existing App Store price schedule is preserved.
+The app itself defaults to a free base price (`app.price: 0`) and is made available in every active App Store territory, including future territories. Set `app.price` to a non-negative amount to choose a different initial base price; an existing App Store price schedule is preserved.
+
+Pricing defaults to `USA` (USD) for compatibility. To calculate prices from Austria, add this top-level setting to the shared or per-app `deployment.json`:
+
+```json
+"pricing": { "baseTerritory": "AUT" }
+```
+
+All configured `price` amounts then refer to EUR, Austria's currency. You can override `baseTerritory` inside `app` or an individual subscription/IAP entry. Changing this setting does not convert existing numeric configuration values, replace existing app/IAP schedules, or reprice existing subscription territories.
+
+For apps and one-time IAPs, Apple generates other territory prices from the base schedule. For subscriptions, the script fetches Apple's equalized price points and writes each missing territory, explicitly including the base territory. It stops with the missing territory codes if Apple returns incomplete equalizations, and checks coverage again after writing. Existing subscription prices are preserved; rerunning repairs missing prices, including territories added since the last run. These subscription prices are not automatically kept in sync with later exchange-rate changes.
 
 Every subscription and in-app purchase uses the fixed App Review note that
 explains how to reach **Unlock Premium**. The matching review screenshot is the

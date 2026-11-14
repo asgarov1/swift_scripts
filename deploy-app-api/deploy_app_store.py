@@ -1257,8 +1257,14 @@ class Deployer:
                     changed = {k:v for k,v in attrs.items() if current.get("attributes",{}).get(k) != v}
                     if changed:self.api.mutate_editable_fields(f"/v2/{typ}/{current['id']}", typ, current["id"], changed, label=f"{locale} {pid} localization")
 
+    def base_territory(self, settings: Dict[str, Any]) -> str:
+        territory = settings.get("baseTerritory", self.cfg.get("pricing", {}).get("baseTerritory", "USA"))
+        if not isinstance(territory, str) or territory not in {t["id"] for t in self.all_territories()}:
+            raise DeployError(f"Invalid pricing baseTerritory: {territory!r}; use an App Store territory code such as AUT or USA")
+        return territory
+
     def price_point(self,path:str,price:float)->Dict[str,Any]:
-        return next((x for x in self.api.collection(path) if float(x.get("attributes",{}).get("customerPrice",-1))==float(price)), None) or (_ for _ in ()).throw(DeployError(f"No USA price point for {price}"))
+        return next((x for x in self.api.collection(path) if float(x.get("attributes",{}).get("customerPrice",-1))==float(price)), None) or (_ for _ in ()).throw(DeployError(f"No price point for {price} at {path}"))
 
     def all_territories(self) -> List[Dict[str, str]]:
         """Return every active App Store territory as a JSON:API linkage."""
@@ -1279,9 +1285,10 @@ class Deployer:
             return
         price = self.cfg.get("app", {}).get("price", 0)
         if not isinstance(price, (int, float)) or isinstance(price, bool) or price < 0:
-            raise DeployError("app.price must be a non-negative USD amount")
+            raise DeployError("app.price must be a non-negative amount in the base territory's currency")
+        territory = self.base_territory(self.cfg.get("app", {}))
         point = self.price_point(
-            f"/v1/apps/{self.app['id']}/appPricePoints?filter[territory]=USA&limit=200",
+            f"/v1/apps/{self.app['id']}/appPricePoints?filter[territory]={territory}&limit=200",
             float(price),
         )
         temporary_id = "${app-price}"
@@ -1289,7 +1296,7 @@ class Deployer:
             "appPriceSchedules",
             rel={
                 "app": relationship("apps", self.app["id"]),
-                "baseTerritory": relationship("territories", "USA"),
+                "baseTerritory": relationship("territories", territory),
                 "manualPrices": {"data": [{"type": "appPrices", "id": temporary_id}]},
             },
         )
@@ -1399,27 +1406,43 @@ class Deployer:
     def subscription_price(self,product:Dict[str,Any],p:Dict[str,Any])->None:
         self.subscription_availability(product)
         if "price" not in p:return
-        # Unlike the App Store Connect website, the API does not fill in other
-        # territories from the USA base price.  A subscription priced only in
-        # the USA stays in MISSING_METADATA, so set Apple's equalized price for
-        # every territory that has none yet; existing prices are never changed.
-        existing=self.api.collection(f"/v1/subscriptions/{product['id']}/prices?include=territory&limit=200")
-        priced={((x.get("relationships",{}).get("territory") or {}).get("data") or {}).get("id") for x in existing}
+        # Subscriptions require a separate write per territory using Apple's
+        # equalizations. Keep the base point explicitly: a filtered price-point
+        # response need not include its territory relationship.
+        prices_path=f"/v1/subscriptions/{product['id']}/prices?include=territory&limit=200"
+        def territory_id(resource):
+            return ((resource.get("relationships",{}).get("territory") or {}).get("data") or {}).get("id")
+        def priced_territories():
+            return {territory_id(x) for x in self.api.collection(prices_path)
+                    if x.get("attributes",{}).get("planType", "UPFRONT") == "UPFRONT"}
+        priced=priced_territories()
         territories={t["id"] for t in self.all_territories()}
         if territories <= priced: return
-        point=self.price_point(f"/v1/subscriptions/{product['id']}/pricePoints?filter[territory]=USA&filter[planType]=UPFRONT&limit=200",p["price"])
-        points=[point]+self.api.collection(f"/v1/subscriptionPricePoints/{point['id']}/equalizations?include=territory&limit=200")
+        territory=self.base_territory(p)
+        point=self.price_point(f"/v1/subscriptions/{product['id']}/pricePoints?filter[territory]={territory}&filter[planType]=UPFRONT&limit=200",p["price"])
+        equalizations=self.api.collection(f"/v1/subscriptionPricePoints/{point['id']}/equalizations?include=territory&limit=200")
+        points={territory_id(x): x for x in equalizations if territory_id(x)}
+        points[territory]=point
         pid=product.get("attributes",{}).get("productId",product["id"])
-        missing=[x for x in points if ((x.get("relationships",{}).get("territory") or {}).get("data") or {}).get("id") in territories - priced]
+        missing_territories=territories-priced
+        uncovered=missing_territories-points.keys()
+        if uncovered:
+            raise DeployError(f"Apple returned no equalized price for {pid} in: {', '.join(sorted(uncovered))}; no subscription prices were written")
+        missing=[points[t] for t in sorted(missing_territories)]
         logging.info("Setting %d missing territory price(s) for %s", len(missing), pid)
         for x in missing:
             self.api.mutate("POST","/v1/subscriptionPrices",data("subscriptionPrices",{"planType":"UPFRONT"},{"subscription":relationship("subscriptions",product["id"]),"subscriptionPricePoint":relationship("subscriptionPricePoints",x["id"])}))
+        if not self.api.dry_run:
+            remaining=territories-priced_territories()
+            if remaining:
+                raise DeployError(f"Subscription prices for {pid} are still missing in: {', '.join(sorted(remaining))}; rerun to retry after Apple processes the changes")
     def iap_price(self,product:Dict[str,Any],p:Dict[str,Any])->None:
         self.iap_availability(product)
         if "price" not in p:return
         if self.api.request("GET",f"/v2/inAppPurchases/{product['id']}/relationships/iapPriceSchedule") is not None:return
-        point=self.price_point(f"/v2/inAppPurchases/{product['id']}/pricePoints?filter[territory]=USA&limit=200",p["price"]); temp="${price1}"
-        body=data("inAppPurchasePriceSchedules",rel={"inAppPurchase":relationship("inAppPurchases",product["id"]),"baseTerritory":relationship("territories","USA"),"manualPrices":{"data":[{"type":"inAppPurchasePrices","id":temp}]}}); body["included"]=[{"type":"inAppPurchasePrices","id":temp,"attributes":{},"relationships":{"inAppPurchaseV2":relationship("inAppPurchases",product["id"]),"inAppPurchasePricePoint":relationship("inAppPurchasePricePoints",point["id"])}}]
+        territory=self.base_territory(p)
+        point=self.price_point(f"/v2/inAppPurchases/{product['id']}/pricePoints?filter[territory]={territory}&limit=200",p["price"]); temp="${price1}"
+        body=data("inAppPurchasePriceSchedules",rel={"inAppPurchase":relationship("inAppPurchases",product["id"]),"baseTerritory":relationship("territories",territory),"manualPrices":{"data":[{"type":"inAppPurchasePrices","id":temp}]}}); body["included"]=[{"type":"inAppPurchasePrices","id":temp,"attributes":{},"relationships":{"inAppPurchaseV2":relationship("inAppPurchases",product["id"]),"inAppPurchasePricePoint":relationship("inAppPurchasePricePoints",point["id"])}}]
         self.api.mutate("POST","/v1/inAppPurchasePriceSchedules",body)
 
     def wait_for_valid_build_and_attach(self, version: Dict[str,Any], build_id: str, timeout: int) -> None:
