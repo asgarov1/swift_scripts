@@ -11,6 +11,23 @@ cd /Users/asgarov1/Projects/swift/scripts/deploy-app-api
 
 It merges the shared `/Users/asgarov1/Projects/swift/scripts/deploy-app-api/deployment.json` with the app's own `<root>/deployment.json` (see Configuration). Pass `--config` / `--project-config` only when intentionally using different files. It uses an App Store Connect team API key (`keyId`, `issuerId`, and the local `.p8` file). The only local executable dependency is macOS `openssl`, used solely to create the ES256 JWT required by Apple.
 
+## Header and Search Results creative assets
+
+When `<root>/app-store-assets` exists, deployment automatically loads its `manifest.json`. To use a shared directory instead, pass `--app-store-assets PATH`; the explicit path takes precedence and is resolved from the current working directory:
+
+```sh
+./deploy_app_store.py /Users/asgarov1/Projects/swift/Spanish/spanish-a1 \
+  --app-store-assets /Users/asgarov1/Projects/swift/Spanish/app-store-assets
+```
+
+With neither an explicit path nor a project-local folder, deployment behaves as before. An existing but invalid folder fails before any API call. `--build-only` continues to build only and does not upload creatives.
+
+The directory must contain the schema-version-1 manifest produced by the creative-assets exporter: `assets` entries with `locale`, `placement` (`header` or `search-results`), relative `video` and `poster` paths, and video `bytes`/`sha256`; placement `specifications` with `width`/`height`; and `framesPerSecond`, `durationSeconds`, `audio`, and `posterTimeSeconds: 0`. If `apps` is present, it must list the deployment root's folder name and its locales. Only locales configured in the project's `localizations.json` are selected; each selected locale must have both placements. The manifest, file containment, and video hashes are checked locally before deployment starts.
+
+The deployer uses Apple's [App Asset Library API](https://developer.apple.com/documentation/appstoreconnectapi/app-asset-library), with endpoints and payloads checked against the public OpenAPI 4.6 specification. It reads the current reference catalog to resolve supported specifications and placement groups, uploads both the videos and PNG alternatives as `CREATIVE_ASSETS`, and sets the videos' poster frame to `00:00:00:00`. After Apple finishes processing, it assigns the videos to the matching draft-version localization's Header and Search Results placements. The PNGs remain available as still alternatives in Asset Library.
+
+Unchanged uploads are reused using SHA-256-bearing reference names and the existing per-project state journal; interrupted reservations resume. Changed videos are processed before their old draft placements are replaced. Previous library assets are retained. Failed processing reports Apple's details; a timeout stops after ten minutes per asset and can be resumed by rerunning. This option neither submits creatives for review nor publishes them. `--dry-run` suppresses uploads and placement changes, but still reads App Store Connect, like the rest of the deployer.
+
 ## Configuration
 
 Configuration is split in two files that are deep-merged at startup:

@@ -383,7 +383,7 @@ def sha256(path: Path) -> str: return digest(path, "sha256")
 
 
 class Deployer:
-    def __init__(self, cfg: Dict[str,Any], root: Path, dry: bool):
+    def __init__(self, cfg: Dict[str,Any], root: Path, dry: bool, app_store_assets: Optional[Path]=None):
         self.cfg, self.api = cfg, ASC(cfg, dry)
         self.root = root.expanduser().resolve()
         if not self.root.is_dir(): raise DeployError(f"deployment root is not a directory: {self.root}")
@@ -391,6 +391,9 @@ class Deployer:
         self.journal = json.loads(self.journal_path.read_text()) if self.journal_path.exists() else {"assets":{}}
         self.app: Dict[str,Any] = {}
         self.version_is_update = False
+        default_assets = self.root / "app-store-assets"
+        self.app_store_assets = (app_store_assets.expanduser().resolve() if app_store_assets
+                                 else default_assets.resolve() if default_assets.exists() else None)
 
     def save(self) -> None:
         if not self.api.dry_run:
@@ -822,6 +825,219 @@ class Deployer:
                 for path in paths:
                     if self.upload_asset(aset["id"],kind,path,existing_names=existing_names) is False:
                         break
+
+    def creative_asset_plan(self, locales: Dict[str,Any]) -> List[Dict[str,Any]]:
+        """Validate the exported creative manifest before any remote mutation."""
+        folder = self.app_store_assets
+        if folder is None:
+            return []
+        manifest_path = folder / "manifest.json"
+        if not folder.is_dir() or not manifest_path.is_file():
+            raise DeployError(f"App Store assets require a directory containing manifest.json: {folder}")
+        manifest = json.loads(manifest_path.read_text())
+        if not isinstance(manifest, dict) or manifest.get("schemaVersion") != 1:
+            raise DeployError(f"Unsupported creative manifest schema: {manifest_path}")
+        entries = manifest.get("assets")
+        if not isinstance(entries, list) or not entries:
+            raise DeployError(f"Creative manifest has no assets: {manifest_path}")
+        supported = store_locales(locales, "creative assets")
+        apps = manifest.get("apps")
+        if apps is not None:
+            if not isinstance(apps, dict) or self.root.name not in apps:
+                raise DeployError(f"Creative manifest does not list project {self.root.name!r} in apps")
+            selected = apps[self.root.name]
+            if not isinstance(selected, list) or not all(isinstance(x, str) for x in selected):
+                raise DeployError("Creative manifest apps entries must be locale lists")
+            wanted = set(selected) & supported.keys()
+        else:
+            wanted = set(supported)
+        placements = {"header": "PRODUCT_PAGE_HEADER_ASSET", "search-results": "APP_STORE_SEARCH_RESULTS_ASSET"}
+        seen, plan = set(), []
+        for entry in entries:
+            if not isinstance(entry, dict):
+                raise DeployError("Creative manifest assets must be objects")
+            locale, placement = entry.get("locale"), entry.get("placement")
+            if not isinstance(locale, str) or not isinstance(placement, str) or placement not in placements:
+                raise DeployError(f"Invalid creative locale/placement: {locale!r}/{placement!r}")
+            if locale not in wanted:
+                logging.info("Skipping creative assets for unconfigured locale %s", locale)
+                continue
+            slot = (locale, placement)
+            if slot in seen:
+                raise DeployError(f"Duplicate creative placement: {locale}/{placement}")
+            seen.add(slot)
+            dimensions = manifest.get("specifications", {}).get(placement, {})
+            if any(not isinstance(dimensions.get(k), int) or dimensions[k] <= 0 for k in ("width", "height")):
+                raise DeployError(f"Missing creative dimensions for {placement}")
+            fps, duration = manifest.get("framesPerSecond"), manifest.get("durationSeconds")
+            if fps not in (30, 60) or not isinstance(duration, (int, float)) or not 5 <= duration <= 30:
+                raise DeployError("Creative manifest requires 30/60 fps and a duration of 5–30 seconds")
+            # The exported PNG is an alternative library asset; only the video is placed.
+            for field, route in (("video", "appAssetLibraryVideos"), ("poster", "appAssetLibraryImages")):
+                raw = entry.get(field)
+                if not isinstance(raw, str) or not raw:
+                    raise DeployError(f"Missing {field} for {locale}/{placement}")
+                file = (folder / raw).resolve()
+                if not file.is_relative_to(folder) or not file.is_file() or file.stat().st_size <= 0:
+                    raise DeployError(f"Creative {field} must be a non-empty file inside {folder}: {raw}")
+                hashed = sha256(file)
+                if field == "video" and (hashed != entry.get("sha256") or file.stat().st_size != entry.get("bytes")):
+                    raise DeployError(f"Creative video differs from manifest; rebuild the assets: {file}")
+                if field == "video" and manifest.get("posterTimeSeconds") != 0:
+                    raise DeployError("Creative manifest posterTimeSeconds must be 0")
+                plan.append({"locale": locale, "placement": placement, "placementType": placements[placement],
+                             "file": file, "sha256": hashed, "route": route, "dimensions": dimensions,
+                             "fps": fps, "duration": duration, "audio": manifest.get("audio"), "video": field == "video"})
+        missing = {(locale, placement) for locale in wanted for placement in placements} - seen
+        if missing:
+            raise DeployError("Creative manifest is missing placements: " + ", ".join(f"{l}/{p}" for l,p in sorted(missing)))
+        if not plan:
+            raise DeployError("Creative manifest has no assets for the project's configured App Store locales")
+        logging.info("Using App Store creatives from %s (%d files)", folder, len(plan))
+        return plan
+
+    def creative_groups(self, item: Dict[str,Any], catalog: Dict[str,Any]) -> Dict[str,set[str]]:
+        """Resolve compatible groups from Apple's current catalog, never fixed IDs."""
+        typ = item["placementType"]
+        feature = next((f for f in catalog.get("features", []) if f.get("featureId") == "APP_STORE_VERSIONS"), {})
+        policy = next((p for p in feature.get("placementPolicies", []) if p.get("placementType") == typ), {})
+        allowed = {g for limit in policy.get("groupLimits", []) if limit.get("maxCount", 0) >= 1 for g in limit.get("groupIds", [])}
+        platform = self.cfg["version"].get("platform", "IOS")
+        platforms = {"IOS": {"IPHONE_APP_STORE", "IPAD_APP_STORE", "ANY"},
+                     "MAC_OS": {"MAC_APP_STORE", "ANY"}, "TV_OS": {"TV_APP_STORE", "ANY"},
+                     "VISION_OS": {"VISION_PRO_APP_STORE", "ANY"}}.get(platform, set())
+        allowed &= {g["placementProfileGroupId"] for g in catalog.get("placementProfileGroups", []) if g.get("platform") in platforms}
+        placement = next((p for p in catalog.get("placementTypes", []) if p.get("placementTypeId") == typ), {})
+        if "CREATIVE_ASSETS" not in placement.get("acceptsAssetCategories", []):
+            raise DeployError(f"Apple's asset catalog does not support creative assets for {typ}")
+        def seconds(value: str) -> float:
+            match = re.fullmatch(r"PT(?:(\d+(?:\.\d+)?)H)?(?:(\d+(?:\.\d+)?)M)?(?:(\d+(?:\.\d+)?)S)?", value)
+            if not match:
+                raise DeployError(f"Unsupported asset catalog duration: {value}")
+            return sum(float(v or 0) * scale for v,scale in zip(match.groups(), (3600,60,1)))
+        compatible = set()
+        for spec in catalog.get("videoSpecs" if item["video"] else "imageSpecs", []):
+            dims = spec.get("dimensions", {})
+            if not all(dims.get("min"+axis, 0) <= item["dimensions"][axis.lower()] <= dims.get("max"+axis, 0) for axis in ("Width", "Height")):
+                continue
+            if typ not in spec.get("compatiblePlacementTypes", []) or item["file"].suffix.lower() not in spec.get("fileExtensions", []):
+                continue
+            if item["file"].stat().st_size > spec.get("maxFileSize", 0):
+                continue
+            if item["video"]:
+                if not any(r["minFps"] <= item["fps"] <= r["maxFps"] for r in spec.get("frameRates", [])):
+                    continue
+                limits = spec.get("duration", {})
+                if not seconds(limits.get("min", "PT0S")) <= item["duration"] <= seconds(limits.get("max", "PT0S")):
+                    continue
+                if spec.get("audioRequired") and item["audio"] == "none":
+                    continue
+            compatible.add(spec["specId"])
+        groups = {mapping["placementGroupId"]: compatible & set(mapping.get("specs", []))
+                  for mapping in placement.get("specMappings", []) if mapping.get("placementGroupId") in allowed}
+        groups = {group: specs for group,specs in groups.items() if specs}
+        if not groups:
+            raise DeployError(f"Apple's current catalog has no compatible {platform} {typ} specification for {item['file']}")
+        return groups
+
+    def upload_creative(self, library_id: str, item: Dict[str,Any]) -> Dict[str,Any]:
+        route, file = item["route"], item["file"]
+        if sha256(file) != item["sha256"]:
+            raise DeployError(f"Creative file changed during deployment; rerun: {file}")
+        # Apple exposes no source checksum for library assets. Put our digest in
+        # referenceName to recover uploads even if the local journal is lost.
+        reference = f"deploy:{item['locale']}:{item['placement']}:{item['sha256']}"
+        key = f"creative:{library_id}:{route}:{reference}"
+        ident = self.journal["assets"].get(key)
+        resource = (self.api.request("GET", f"/v1/{route}/{ident}") or {}).get("data") if ident else None
+        if resource is None:
+            plural = "videos" if item["video"] else "images"
+            query = urllib.parse.urlencode({"filter[referenceName]": reference, "filter[category]": "CREATIVE_ASSETS", "limit": 200})
+            candidates = self.api.collection(f"/v1/appAssetLibraries/{library_id}/{plural}?{query}")
+            resource = next((r for r in candidates if r.get("attributes", {}).get("state") not in {"FAILED", "REJECTED", "ARCHIVED"}), None)
+        if resource and resource.get("attributes", {}).get("state") in {"FAILED", "REJECTED", "ARCHIVED"}:
+            logging.warning("Replacing unusable creative reservation %s: %s", resource["id"], resource.get("attributes", {}).get("stateDetails"))
+            resource = None
+        if resource and (resource.get("attributes", {}).get("referenceName") != reference
+                         or resource.get("attributes", {}).get("category") != "CREATIVE_ASSETS"
+                         or resource.get("attributes", {}).get("fileSize") != file.stat().st_size):
+            raise DeployError(f"Creative reservation does not match local file: {file}")
+        if resource is None:
+            self.api.step(f"reserve creative {item['locale']}/{file.name}")
+            attrs = {"category": "CREATIVE_ASSETS", "fileName": file.name, "fileSize": file.stat().st_size, "referenceName": reference}
+            if item["video"]: attrs["previewFrameTimeCode"] = "00:00:00:00"
+            resource = self.api.mutate("POST", f"/v1/{route}", data(route, attrs, {"assetLibrary": relationship("appAssetLibraries", library_id)}))["data"]
+        self.journal["assets"][key] = resource["id"]
+        self.save()
+        if self.api.dry_run:
+            logging.info("DRY RUN upload/commit creative %s and wait for processing", file)
+            return resource
+        path = f"/v1/{route}/{resource['id']}"
+        if resource.get("attributes", {}).get("state") == "AWAITING_UPLOAD":
+            self.api.step(f"upload creative {item['locale']}/{file.name}")
+            operations = resource["attributes"].get("uploadOperations", [])
+            if not operations:
+                raise DeployError(f"Apple returned no upload operations for {file}; rerun to refresh the reservation")
+            with file.open("rb") as source:
+                for op in operations:
+                    source.seek(op["offset"])
+                    chunk = source.read(op["length"])
+                    if len(chunk) != op["length"]: raise DeployError(f"Invalid upload range for {file}")
+                    self.api.request(op["method"], op["url"], raw=chunk, headers={h["name"]:h["value"] for h in op.get("requestHeaders", [])}, allow=())
+            self.api.mutate("PATCH", path, data(route, {"uploaded": True}, ident=resource["id"]))
+        deadline = time.monotonic() + 600
+        ready = {"COMPLETE", "PREPARE_FOR_SUBMISSION", "READY_FOR_REVIEW", "WAITING_FOR_REVIEW", "IN_REVIEW", "ACCEPTED", "APPROVED"}
+        while True:
+            resource = (self.api.request("GET", path, allow=()) or {})["data"]
+            attrs = resource.get("attributes", {})
+            state = attrs.get("state")
+            if state in ready:
+                return resource
+            if state not in {"AWAITING_UPLOAD", "UPLOAD_COMPLETE"}:
+                raise DeployError(f"Creative processing failed for {file}: {state}: {attrs.get('stateDetails')}")
+            if time.monotonic() >= deadline:
+                raise DeployError(f"Timed out processing {file}; rerun to resume")
+            logging.info("Waiting for creative %s: %s", file.name, state)
+            time.sleep(10)
+
+    def creative_assets(self, plan: List[Dict[str,Any]], localizations: Dict[str,Any]) -> None:
+        if not plan: return
+        self.api.step("resolve App Store creative asset library and specifications")
+        library = self.api.request("GET", f"/v1/apps/{self.app['id']}/assetLibrary", allow=()) or {}
+        library_id = library["data"]["id"]
+        catalogs = self.api.collection("/v1/appAssetLibraryRefData")
+        if len(catalogs) != 1:
+            raise DeployError("Expected one App Asset Library reference catalog")
+        # Resolve every file before uploading any: invalid specs cannot leave a
+        # half-replaced set of placements. Uploaded assets remain in the library.
+        for item in plan:
+            item["groups"] = self.creative_groups(item, catalogs[0].get("attributes", {}))
+        for item in plan:
+            resource = self.upload_creative(library_id, item)
+            spec_id = resource.get("attributes", {}).get("specId")
+            groups = [g for g,specs in item["groups"].items() if (self.api.dry_run and not spec_id) or spec_id in specs]
+            if not groups:
+                raise DeployError(f"Apple processed {item['file']} as incompatible spec {spec_id}; existing placements retained")
+            if not item["video"]: continue
+            loc_id = localizations[item["locale"]]["id"]
+            for group in groups:
+                query = urllib.parse.urlencode({"filter[placementType]": item["placementType"], "filter[placementGroup]": group, "include": "video", "limit": 200})
+                existing = [] if loc_id == "dry-run" else self.api.collection(f"/v1/appStoreVersionLocalizations/{loc_id}/placements?{query}")
+                matching = [p for p in existing if (p.get("relationships", {}).get("video", {}).get("data") or {}).get("id") == resource["id"]]
+                if len(existing) == len(matching) == 1:
+                    logging.info("Creative placement already matches: %s/%s/%s", item["locale"], item["placement"], group)
+                    continue
+                self.api.step(f"set creative placement {item['locale']}/{item['placement']}/{group}")
+                for old in existing:
+                    if matching and old["id"] == matching[0]["id"]: continue
+                    path = f"/v1/appAssetLibraryPlacements/{old['id']}"
+                    if self.api.dry_run: logging.info("DRY RUN DELETE %s", path)
+                    else: self.api.request("DELETE", path, allow=())
+                if not matching:
+                    self.api.mutate("POST", "/v1/appAssetLibraryPlacements", data("appAssetLibraryPlacements",
+                        {"placementType": item["placementType"], "placementGroup": group},
+                        {"video": relationship(item["route"], resource["id"]),
+                         "appStoreVersionLocalization": relationship("appStoreVersionLocalizations", loc_id)}))
 
     def delete_assets(self, assets: List[Dict[str, Any]], kind: str) -> None:
         """Delete every given screenshot or preview from its App Store media set."""
@@ -1293,9 +1509,10 @@ class Deployer:
 
     def run(self) -> None:
         self.validate_text_limits(self.locales())
+        creative_plan = self.creative_asset_plan(self.locales())
         self.ensure_app(); self.app_price(); self.app_availability(); version=self.ensure_version(); existing_build=self.uploaded_build()
         if existing_build is None: self.prepare_ipa()
-        self.ensure_primary_category(); self.ensure_review_details(version); locales=self.locales(); version_locales=self.upsert_localizations(version,locales); self.media(version_locales); self.ensure_products(locales); self.upload_build(version, existing_build); self.save()
+        self.ensure_primary_category(); self.ensure_review_details(version); locales=self.locales(); version_locales=self.upsert_localizations(version,locales); self.media(version_locales); self.creative_assets(creative_plan, version_locales); self.ensure_products(locales); self.upload_build(version, existing_build); self.save()
         self.api.step("deployment API reconciliation complete")
 
 
@@ -1363,6 +1580,7 @@ def main()->None:
     p.add_argument("root", nargs="?", help="required app-assets root directory")
     p.add_argument("--config", default=str(default_config), help=f"shared configuration file (default: {default_config})")
     p.add_argument("--project-config", metavar="PATH", help=f"per-app configuration merged over --config (default: <root>/{PROJECT_CONFIG_NAME})")
+    p.add_argument("--app-store-assets", metavar="PATH", type=Path, help="creative assets directory containing manifest.json (default: <root>/app-store-assets when present)")
     p.add_argument("--dry-run",action="store_true")
     p.add_argument("--build-only",action="store_true",help="create the configured IPA without contacting App Store Connect")
     p.add_argument("--write-example",metavar="PATH",help="write an example shared configuration")
@@ -1377,7 +1595,7 @@ def main()->None:
     try:
         root = Path(args.root).expanduser()
         project_config = Path(args.project_config).expanduser() if args.project_config else root / PROJECT_CONFIG_NAME
-        deployer=Deployer(load_config(Path(args.config), project_config),root,args.dry_run)
+        deployer=Deployer(load_config(Path(args.config), project_config),root,args.dry_run,args.app_store_assets)
         deployer.prepare_ipa() if args.build_only else deployer.run()
-    except (DeployError,KeyError,ValueError,json.JSONDecodeError) as e: logging.error("Deployment stopped: %s",e); sys.exit(1)
+    except (DeployError,KeyError,ValueError,OSError,json.JSONDecodeError) as e: logging.error("Deployment stopped: %s",e); sys.exit(1)
 if __name__=="__main__": main()
