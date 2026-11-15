@@ -537,7 +537,8 @@ class Deployer:
         self.api.step("set primary App Store category to Education")
         app_info = self.editable_app_info()
         current = self.api.request("GET", f"/v1/appInfos/{app_info['id']}/primaryCategory") or {}
-        if current.get("data", {}).get("id") == PRIMARY_CATEGORY_ID:
+        # An unset category is returned as {"data": null}.
+        if (current.get("data") or {}).get("id") == PRIMARY_CATEGORY_ID:
             return
         self.api.mutate(
             "PATCH",
